@@ -449,7 +449,7 @@ function Badge({ children, tone = "blue" }: { children: React.ReactNode; tone?: 
 
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white border border-slate-100 rounded-[2rem] shadow-sm ${className}`}>
+    <div className={`bg-transparent border-0 border-b border-slate-200 rounded-none shadow-none md:bg-white md:border md:border-slate-100 md:rounded-[2rem] md:shadow-sm ${className}`}>
       {children}
     </div>
   )
@@ -549,7 +549,7 @@ export default function OrganizationPage() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-slate-900 selection:bg-blue-100 selection:text-blue-900 font-sans">
       {/* --- FLOATING GLASS NAVIGATION --- */}
-      <nav className="fixed top-6 left-0 right-0 z-[100] transition-all duration-500 flex justify-center px-4">
+      <nav className="fixed top-0 left-0 right-0 z-[100] transition-all duration-500 flex justify-center px-4">
         <div className="flex items-center justify-between px-6 py-3 rounded-full transition-all duration-500 bg-white/80 backdrop-blur-xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full max-w-7xl">
           <button onClick={() => router.push("/")} className="flex items-center gap-2">
             <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-1.5 rounded-full shadow-md shadow-blue-200">
@@ -674,7 +674,7 @@ export default function OrganizationPage() {
 function ProfileTab({ setActiveTab, onLogout }: { setActiveTab: (tab: OrganizationTab) => void; onLogout: () => void }) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] p-8 md:p-10 shadow-sm">
+      <div className="relative overflow-hidden bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white/80 md:backdrop-blur-xl md:border md:border-white md:rounded-[2.5rem] md:p-10 md:shadow-sm">
         <div className="absolute -top-10 -right-10 w-56 h-56 bg-blue-50 rounded-full blur-3xl" />
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
@@ -739,7 +739,7 @@ function ProfileTab({ setActiveTab, onLogout }: { setActiveTab: (tab: Organizati
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
-        <div className="bg-white border border-slate-100 rounded-[2rem] p-8">
+        <div className="bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white md:border md:border-slate-100 md:rounded-[2rem] md:p-8">
           <SectionHeader
             icon={Building2}
             title="Public profile information"
@@ -761,7 +761,7 @@ function ProfileTab({ setActiveTab, onLogout }: { setActiveTab: (tab: Organizati
           </div>
         </div>
 
-        <div className="bg-white border border-slate-100 rounded-[2rem] p-8">
+        <div className="bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white md:border md:border-slate-100 md:rounded-[2rem] md:p-8">
           <SectionHeader
             icon={ShieldCheck}
             title="Verification summary"
@@ -779,7 +779,7 @@ function ProfileTab({ setActiveTab, onLogout }: { setActiveTab: (tab: Organizati
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] p-8">
+      <div className="bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white md:border md:border-slate-100 md:rounded-[2rem] md:p-8">
         <SectionHeader
           icon={FileCheck2}
           title="Verification documents"
@@ -841,7 +841,7 @@ function OverviewTab({ setActiveTab }: { setActiveTab: (tab: OrganizationTab) =>
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {dashboardStats.map((stat) => (
           <button
             key={stat.label}
@@ -850,16 +850,16 @@ function OverviewTab({ setActiveTab }: { setActiveTab: (tab: OrganizationTab) =>
               if (stat.label.includes("Givers")) setActiveTab("givers")
               if (stat.label.includes("Fulfilled")) setActiveTab("fulfillment")
             }}
-            className="group bg-white border border-slate-200 rounded-2xl p-5 text-left hover:border-blue-200 hover:shadow-sm transition-all duration-300"
+            className="group bg-transparent border-0 border-b border-slate-200 rounded-none p-4 text-left transition-all duration-300 md:bg-white md:border md:border-slate-200 md:rounded-2xl md:p-5 md:hover:border-blue-200 md:hover:shadow-sm"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-medium text-slate-500">{stat.label}</div>
-                <div className="text-3xl font-semibold tracking-tight text-slate-900 mt-3">{stat.value}</div>
+                <div className="text-xs md:text-sm font-medium text-slate-500 leading-snug">{stat.label}</div>
+                <div className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 mt-2 md:mt-3">{stat.value}</div>
               </div>
-              <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
+              <ArrowRight className="hidden md:block w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
             </div>
-            <div className="text-sm text-slate-400 mt-4 pt-4 border-t border-slate-100">{stat.helper}</div>
+            <div className="text-xs md:text-sm text-slate-400 mt-3 md:mt-4 pt-3 md:pt-4 border-t border-slate-100 leading-snug">{stat.helper}</div>
           </button>
         ))}
       </div>

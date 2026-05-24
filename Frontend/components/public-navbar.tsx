@@ -22,6 +22,13 @@ export default function PublicNavbar() {
 
   const pathnameLower = pathname.toLowerCase()
 
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      "data-theme",
+      isDarkMode ? "dark" : "light"
+    )
+  }, [isDarkMode])
+
   // Do not show the public navbar on any dashboard page
   const isDashboardPage =
     pathnameLower.startsWith("/dashboard") ||
@@ -32,13 +39,6 @@ export default function PublicNavbar() {
   if (isDashboardPage) {
     return null
   }
-
-  useEffect(() => {
-    document.documentElement.setAttribute(
-      "data-theme",
-      isDarkMode ? "dark" : "light"
-    )
-  }, [isDarkMode])
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode)

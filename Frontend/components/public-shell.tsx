@@ -5,8 +5,15 @@ import PublicNavbar from "@/components/public-navbar"
 
 export default function PublicShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const pathnameLower = pathname.toLowerCase()
 
-  if (pathname.startsWith("/dashboard")) {
+  const isDashboardPage =
+    pathnameLower.startsWith("/dashboard") ||
+    pathnameLower.startsWith("/givers-dashboard") ||
+    pathnameLower.startsWith("/organisation-dashboard") ||
+    pathnameLower.startsWith("/admin-dashboard")
+
+  if (isDashboardPage) {
     return <>{children}</>
   }
 

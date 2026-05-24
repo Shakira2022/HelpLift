@@ -423,7 +423,7 @@ function Badge({ children, tone = "blue" }: { children: React.ReactNode; tone?: 
 
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm ${className}`}>
+    <div className={`bg-transparent border-0 border-b border-slate-200 rounded-none shadow-none md:bg-white md:border md:border-slate-200 md:rounded-2xl md:shadow-sm ${className}`}>
       {children}
     </div>
   )
@@ -524,7 +524,7 @@ export default function GiverDashboardPage() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-slate-900 selection:bg-blue-100 selection:text-blue-900 font-sans">
       {/* Floating Navigation */}
-      <nav className="fixed top-6 left-0 right-0 z-[100] flex justify-center px-4">
+      <nav className="fixed top-0 left-0 right-0 z-[100] flex justify-center px-4">
         <div className="flex items-center justify-between px-5 py-3 rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full max-w-6xl">
           <button onClick={() => router.push("/")} className="flex items-center gap-2">
             <div className="bg-blue-600 p-1.5 rounded-full shadow-sm">
@@ -669,7 +669,7 @@ function DashboardIntro({
   openSheet: (type: SheetType, need?: (typeof recommendedNeeds)[number]) => void
 }) {
   return (
-    <div className="relative overflow-hidden bg-white/85 backdrop-blur-xl border border-white rounded-[2rem] p-8 md:p-10 shadow-sm">
+    <div className="relative overflow-hidden bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white/85 md:backdrop-blur-xl md:border md:border-white md:rounded-[2rem] md:p-10 md:shadow-sm">
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
         <div>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -712,12 +712,12 @@ function DashboardTab({
 }) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="text-sm font-semibold text-slate-500">{stat.label}</div>
-            <div className="text-3xl font-semibold tracking-tight text-slate-900 mt-4">{stat.value}</div>
-            <div className="text-sm text-slate-400 mt-2">{stat.helper}</div>
+          <div key={stat.label} className="bg-transparent border-0 border-b border-slate-200 rounded-none p-4 shadow-none md:bg-white md:border md:border-slate-200 md:rounded-2xl md:p-5 md:shadow-sm">
+            <div className="text-xs md:text-sm font-semibold text-slate-500 leading-snug">{stat.label}</div>
+            <div className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 mt-3 md:mt-4">{stat.value}</div>
+            <div className="text-xs md:text-sm text-slate-400 mt-2 leading-snug">{stat.helper}</div>
           </div>
         ))}
       </div>
@@ -1186,7 +1186,7 @@ function ProfileTab({
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] p-8 md:p-10 shadow-sm">
+      <div className="relative overflow-hidden bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white/80 md:backdrop-blur-xl md:border md:border-white md:rounded-[2.5rem] md:p-10 md:shadow-sm">
         <div className="absolute -top-10 -right-10 w-56 h-56 bg-blue-50 rounded-full blur-3xl" />
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
@@ -1251,7 +1251,7 @@ function ProfileTab({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
-        <div className="bg-white border border-slate-100 rounded-[2rem] p-8">
+        <div className="bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white md:border md:border-slate-100 md:rounded-[2rem] md:p-8">
           <SectionHeader
             icon={User}
             title="Public profile information"
@@ -1275,7 +1275,7 @@ function ProfileTab({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-100 rounded-[2rem] p-8">
+        <div className="bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white md:border md:border-slate-100 md:rounded-[2rem] md:p-8">
           <SectionHeader
             icon={ShieldCheck}
             title="Account summary"
@@ -1294,7 +1294,7 @@ function ProfileTab({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] p-8">
+      <div className="bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white md:border md:border-slate-100 md:rounded-[2rem] md:p-8">
         <SectionHeader
           icon={SlidersHorizontal}
           title="Giving preferences"

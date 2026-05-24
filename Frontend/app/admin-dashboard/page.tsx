@@ -489,7 +489,7 @@ function Badge({ children, tone = "slate" }: { children: React.ReactNode; tone?:
 }
 
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white border border-slate-200 rounded-[1.75rem] ${className}`}>{children}</div>
+  return <div className={`bg-transparent border-0 border-b border-slate-200 rounded-none md:bg-white md:border md:border-slate-200 md:rounded-[1.75rem] ${className}`}>{children}</div>
 }
 
 function SectionHeader({
@@ -580,8 +580,8 @@ export default function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-slate-900 selection:bg-blue-100 selection:text-blue-900 font-sans">
       {/* Top Navigation */}
-      <nav className="fixed top-6 left-0 right-0 z-[100] flex justify-center px-4">
-        <div className="flex items-center justify-between px-6 py-3 rounded-full bg-white/90 backdrop-blur-xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full max-w-7xl">
+<nav className="fixed top-0 left-0 right-0 z-[100] flex justify-center px-4">
+  <div className="flex items-center justify-between px-6 py-3 rounded-full bg-white/90 backdrop-blur-xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full max-w-[1350px]">
           <button onClick={() => router.push("/")} className="flex items-center gap-2">
             <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-1.5 rounded-full shadow-md shadow-blue-200">
               <HeartHandshake className="w-5 h-5 text-white" />
@@ -739,7 +739,7 @@ export default function AdminDashboardPage() {
 function DashboardTab({ setActiveTab }: { setActiveTab: (tab: AdminTab) => void }) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {dashboardMetrics.map((metric) => {
           return (
             <button
@@ -752,14 +752,14 @@ function DashboardTab({ setActiveTab }: { setActiveTab: (tab: AdminTab) => void 
                 else if (metric.label.includes("givers")) setActiveTab("users")
                 else setActiveTab("reports")
               }}
-              className="bg-white border border-slate-200 rounded-[1.5rem] p-5 text-left hover:bg-slate-50 transition-all"
+              className="bg-transparent border-0 border-b border-slate-200 rounded-none p-4 text-left transition-all md:bg-white md:border md:border-slate-200 md:rounded-[1.5rem] md:p-5 md:hover:bg-slate-50"
             >
-              <div className="flex items-center justify-end mb-4">
+              <div className="hidden md:flex items-center justify-end mb-4">
                 <ArrowRight className="w-4 h-4 text-slate-300" />
               </div>
-              <div className="text-3xl font-semibold tracking-tight text-slate-900">{metric.value}</div>
-              <div className="font-semibold text-slate-700 mt-1">{metric.label}</div>
-              <div className="text-sm text-slate-400 mt-2">{metric.helper}</div>
+              <div className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">{metric.value}</div>
+              <div className="text-sm md:text-base font-semibold text-slate-700 mt-1 leading-snug">{metric.label}</div>
+              <div className="text-xs md:text-sm text-slate-400 mt-2 leading-snug">{metric.helper}</div>
             </button>
           )
         })}
@@ -1071,7 +1071,7 @@ function ReportsTab() {
           <SectionCard key={metric.label} className="p-5">
             <div className="text-sm font-semibold text-slate-500">{metric.label}</div>
             <div className="text-3xl font-semibold tracking-tight text-slate-900 mt-4">{metric.value}</div>
-            <div className="text-sm text-slate-400 mt-2">{metric.trend}</div>
+            <div className="text-xs md:text-sm text-slate-400 mt-2 leading-snug">{metric.trend}</div>
           </SectionCard>
         ))}
       </div>

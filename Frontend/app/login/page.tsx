@@ -154,6 +154,16 @@ export default function LoginPage() {
           Create an account
         </Link>
       </p>
+
+      <div className="mt-8 text-center text-sm text-slate-500">
+        Admin access?{" "}
+        <Link
+          href="/admin-login"
+          className="text-indigo-600 font-bold hover:underline"
+        >
+          Sign in as admin
+        </Link>
+      </div>
     </div>
   )
 }

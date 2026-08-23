@@ -570,7 +570,11 @@ export default function AdminDashboardPage() {
     setIsMoreOpen(false)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // The session cookie is httpOnly, so it can only be cleared by the
+    // server — localStorage.removeItem alone would leave the user still
+    // authenticated as far as middleware is concerned.
+    await fetch("/api/logout", { method: "POST" }).catch(() => {})
     localStorage.removeItem("userId")
     localStorage.removeItem("userRole")
     localStorage.removeItem("userName")

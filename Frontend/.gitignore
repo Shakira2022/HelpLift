@@ -6,3 +6,8 @@ yarn-debug.log
 yarn-error.log
 dist/
 build/
+
+# env files
+.env
+.env.local
+.env.*.local

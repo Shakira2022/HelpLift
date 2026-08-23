@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { 
   HeartHandshake, 
@@ -17,11 +17,7 @@ import {
   Users,
   CheckCircle2,
   Quote,
-  Search,
-  MessageSquare,
-  X,
-  Bot,
-  User
+  Search
 } from "lucide-react"
 
 // -------------------- Data (HelpLift Ecosystem) --------------------
@@ -59,15 +55,6 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0)
   const [faqSearchQuery, setFaqSearchQuery] = useState("")
 
-  // --- AI Chatbot States ---
-  const [isChatOpen, setIsChatOpen] = useState(false)
-  const [chatInput, setChatInput] = useState("")
-  const [messages, setMessages] = useState([
-    { role: "assistant", text: "Hi there! I'm your HelpLift Assistant. How can I help you navigate our giving platform today?" }
-  ])
-  const [isTyping, setIsTyping] = useState(false)
-  const chatMessagesEndRef = useRef<HTMLDivElement>(null)
-
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20)
     window.addEventListener("scroll", handleScroll)
@@ -80,40 +67,6 @@ export default function LandingPage() {
     }, 6000)
     return () => clearInterval(interval)
   }, [])
-
-  // Auto-scroll chat to bottom
-  useEffect(() => {
-    chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, isTyping])
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!chatInput.trim()) return
-
-    const userMessage = chatInput.trim()
-    setMessages((prev) => [...prev, { role: "user", text: userMessage }])
-    setChatInput("")
-    setIsTyping(true)
-
-    // Simulate intelligent AI response based on context or keywords
-    setTimeout(() => {
-      let botResponse = "Thanks for asking! HelpLift connects verified organizations with passionate givers. You can sign up to browse needs or post items to our Gift Library."
-      
-      const lower = userMessage.toLowerCase()
-      if (lower.includes("verify") || lower.includes("organization") || lower.includes("vet")) {
-        botResponse = "Organizations undergo strict vetting where our admins review registration documents, tax status, and community footprints to ensure total trust."
-      } else if (lower.includes("gift library") || lower.includes("surplus") || lower.includes("items")) {
-        botResponse = "The Gift Library allows you to proactively list surplus goods, inventory, or professional services so verified organizations can claim them directly."
-      } else if (lower.includes("cost") || lower.includes("fee") || lower.includes("free")) {
-        botResponse = "Yes! HelpLift is completely free for verified organizations to post needs and for givers to contribute."
-      } else if (lower.includes("signup") || lower.includes("register") || lower.includes("join")) {
-        botResponse = "You can easily join by clicking the 'Join the Platform' button at the top of the page or going directly to our registration page."
-      }
-
-      setMessages((prev) => [...prev, { role: "assistant", text: botResponse }])
-      setIsTyping(false)
-    }, 1000)
-  }
 
   const currentStory = impactStories[activeStoryIndex]
 
@@ -133,7 +86,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-slate-900 selection:bg-blue-100 selection:text-blue-900 scroll-smooth font-sans relative">
+    <div className="min-h-screen bg-[#FAFAFA] text-slate-900 selection:bg-blue-100 selection:text-blue-900 scroll-smooth font-sans">
       
       {/* --- FLOATING GLASS NAVIGATION --- */}
       <nav 
@@ -407,7 +360,7 @@ export default function LandingPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Email Address</label>
                     <input 
                       type="email" 
-                      placeholder="name@example.com" 
+                      placeholder="hello@organization.org" 
                       className="w-full px-5 py-4 bg-[#FAFAFA] border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-medium"
                     />
                   </div>
@@ -450,100 +403,6 @@ export default function LandingPage() {
           </div>
         </footer>
       </main>
-
-      {/* --- FLOATING AI CHATBOT WIDGET --- */}
-      <div className="fixed bottom-6 right-6 z-[150]">
-        {!isChatOpen ? (
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="relative group flex items-center justify-center w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-full shadow-[0_10px_30px_rgb(37,99,235,0.4)] hover:scale-105 active:scale-95 transition-all duration-300"
-            aria-label="Open AI Assistant"
-          >
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
-            </span>
-            <Bot className="w-6 h-6" />
-          </button>
-        ) : (
-          <div className="w-[360px] md:w-[400px] h-[520px] bg-white border border-slate-200 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-            {/* Chat Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center shadow-inner">
-                  <Sparkles className="w-5 h-5 text-white animate-pulse" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm leading-tight">HelpLift Assistant</h4>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Online & Ready</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setIsChatOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-full transition-colors"
-                aria-label="Close Chat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Chat Messages Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-              {messages.map((msg, index) => (
-                <div 
-                  key={index} 
-                  className={`flex items-start gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-blue-600 text-white'
-                  }`}>
-                    {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                  </div>
-                  <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                    msg.role === 'user' 
-                      ? 'bg-slate-900 text-white rounded-tr-none' 
-                      : 'bg-white border border-slate-200 text-slate-700 shadow-sm rounded-tl-none'
-                  }`}>
-                    {msg.text}
-                  </div>
-                </div>
-              ))}
-
-              {isTyping && (
-                <div className="flex items-start gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
-                    <Bot className="w-4 h-4" />
-                  </div>
-                  <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1.5">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                  </div>
-                </div>
-              )}
-              <div ref={chatMessagesEndRef} />
-            </div>
-
-            {/* Chat Input Footer */}
-            <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-slate-100 flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Ask anything about HelpLift..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                className="flex-1 px-4 py-3 bg-slate-100 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm text-slate-800"
-              />
-              <button
-                type="submit"
-                className="w-11 h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center justify-center shadow-md transition-all shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        )}
-      </div>
-
     </div>
   )
 }

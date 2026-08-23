@@ -2,8 +2,7 @@
  * Lightweight session cookie signing/verification.
  *
  * This exists as a scaffold while there is no real auth provider or
- * database wired up (login currently checks an in-memory MOCK_USERS
- * array). It gives middleware something real to check — an HMAC-signed,
+ * database wired up. It gives middleware something real to check — an HMAC-signed,
  * httpOnly cookie — instead of the unauthenticated localStorage values
  * that were being set before.
  *

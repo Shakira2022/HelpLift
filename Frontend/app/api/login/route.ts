@@ -1,5 +1,10 @@
 
 import { NextResponse } from "next/server";
+import {
+  createSessionToken,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+} from "@/lib/session";
 
 
 type MockUser = {
@@ -68,11 +73,31 @@ export async function POST(req: Request) {
     // 4. Remove password before returning response
     const { password: _password, ...safeUser } = user;
 
-    return NextResponse.json({
+    // 5. Issue a signed session cookie so middleware can verify this
+    // request is authenticated on future requests. See lib/session.ts
+    // for why this exists instead of a real provider session yet.
+    const token = await createSessionToken({
+      userId: user.id,
+      role: user.role,
+      email: user.email,
+      fullName: user.fullName,
+    });
+
+    const response = NextResponse.json({
       success: true,
       message: "Login successful (Test Mode)",
       user: safeUser,
     });
+
+    response.cookies.set(SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_MAX_AGE_SECONDS,
+    });
+
+    return response;
   } catch (err) {
     console.error("Login error:", err);
 

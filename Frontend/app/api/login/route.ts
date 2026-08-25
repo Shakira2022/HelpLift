@@ -1,51 +1,17 @@
-
 import { NextResponse } from "next/server";
-<<<<<<< HEAD
 import {
   createSessionToken,
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
 } from "@/lib/session";
 
+// The real backend (Backend/routes/userRoutes.js) now owns the user
+// database (MongoDB) and password verification. This route no longer
+// checks credentials itself — it forwards the request there, then
+// wraps the result in our own signed session cookie so proxy.ts can
+// keep verifying requests without calling the backend on every load.
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
 
-type MockUser = {
-  id: string;
-  email: string;
-  password: string;
-  fullName: string;
-  role: "giver" | "organization" | "admin";
-  themeMode: "light" | "dark";
-};
-
-const MOCK_USERS: MockUser[] = [
-  {
-    id: "giver_user_001",
-    email: "giver@example.com",
-    password: "password123",
-    fullName: "Test Giver",
-    role: "giver",
-    themeMode: "light",
-  },
-  {
-    id: "organization_user_001",
-    email: "organization@example.com",
-    password: "password123",
-    fullName: "Hope Academy Foundation",
-    role: "organization",
-    themeMode: "light",
-  },
-  {
-    id: "admin_user_001",
-    email: "admin@example.com",
-    password: "password123",
-    fullName: "Test Admin",
-    role: "admin",
-    themeMode: "light",
-  },
-];
-
-=======
->>>>>>> e6578babbb4e2470c809a9ba0ee59038be43e844
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
@@ -58,36 +24,58 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json(
-      { success: false, message: "Login is unavailable until authentication is configured." },
-      { status: 503 }
-    );
-<<<<<<< HEAD
+    // 2. Delegate credential checking to the real backend
+    let backendData: any;
+    try {
+      const backendResponse = await fetch(`${BACKEND_URL}/api/users/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // 3. Invalid login
-    if (!user) {
+      backendData = await backendResponse.json();
+
+      if (!backendResponse.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: backendData?.message || "Invalid email or password",
+          },
+          { status: backendResponse.status }
+        );
+      }
+    } catch (networkErr) {
+      console.error("Backend login request failed:", networkErr);
       return NextResponse.json(
-        { success: false, message: "Invalid email or password" },
-        { status: 401 }
+        {
+          success: false,
+          message: "Login is unavailable right now. Please try again shortly.",
+        },
+        { status: 503 }
       );
     }
 
-    // 4. Remove password before returning response
-    const { password: _password, ...safeUser } = user;
+    // 3. The backend's user object uses `name`; the frontend (login
+    // page) reads `fullName`. Normalize the shape here so nothing on
+    // the frontend needs to change.
+    const safeUser = {
+      id: backendData.user.id,
+      email: backendData.user.email,
+      fullName: backendData.user.name,
+      role: backendData.user.role as "giver" | "organization" | "admin",
+    };
 
-    // 5. Issue a signed session cookie so middleware can verify this
-    // request is authenticated on future requests. See lib/session.ts
-    // for why this exists instead of a real provider session yet.
+    // 4. Issue our own signed session cookie.
     const token = await createSessionToken({
-      userId: user.id,
-      role: user.role,
-      email: user.email,
-      fullName: user.fullName,
+      userId: safeUser.id,
+      role: safeUser.role,
+      email: safeUser.email,
+      fullName: safeUser.fullName,
     });
 
     const response = NextResponse.json({
       success: true,
-      message: "Login successful (Test Mode)",
+      message: "Login successful",
       user: safeUser,
     });
 
@@ -100,8 +88,6 @@ export async function POST(req: Request) {
     });
 
     return response;
-=======
->>>>>>> e6578babbb4e2470c809a9ba0ee59038be43e844
   } catch (err) {
     console.error("Login error:", err);
 

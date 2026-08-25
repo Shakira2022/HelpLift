@@ -4,14 +4,12 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { 
   Mail, 
   ChevronLeft, 
-  Sparkles, 
   Loader2, 
   Send,
-  ShieldCheck
+  HeartHandshake
 } from "lucide-react"
 
 export default function ForgotPasswordPage() {
@@ -33,7 +31,7 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setIsLoading(true)
     
-    // Simulate API call for password reset
+    // API integration point for backend JWT reset link
     await new Promise((resolve) => setTimeout(resolve, 2000))
     
     setIsLoading(false)
@@ -48,38 +46,49 @@ export default function ForgotPasswordPage() {
       <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[50%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* --- MAIN CONTENT --- */}
-      <main className="flex-1 w-full max-w-[600px] px-6 pb-10 pt-32 flex flex-col items-center z-20">
+      <main className="flex-1 w-full max-w-[600px] px-6 pb-10 pt-24 flex flex-col items-center z-20">
         
+        {/* BACK TO LOGIN LINK */}
+        <div className="w-full mb-8">
+          <Link 
+            href="/login" 
+            className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back to Sign In
+          </Link>
+        </div>
+
         {!isSubmitted ? (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* WELCOME/INFO SECTION */}
             <div className="text-center space-y-4 mb-12">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold mx-auto">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Security Recovery</span>
+                <HeartHandshake className="w-4 h-4" />
+                <span>HelpLift Account Recovery</span>
               </div>
               
-              <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-foreground leading-none">
-                LOST YOUR <span className="text-primary italic">KEY?</span>
+              <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-foreground leading-none uppercase">
+                Reset Your <span className="text-primary italic">Password</span>
               </h1>
               
-              <p className="text-muted-foreground text-lg max-w-sm mx-auto">
-                Enter your university email address and we'll send you a secure link to reset your account access.
+              <p className="text-muted-foreground text-base max-w-sm mx-auto">
+                Enter your registered account email and we'll send you a secure verification link to regain access.
               </p>
             </div>
 
             {/* FORM SECTION */}
             <div className="w-full px-4 md:px-8">
-              <form onSubmit={handleSubmit} className="space-y-10">
+              <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-foreground/80 ml-1">University Email</label>
+                  <label className="text-sm font-bold text-foreground/80 ml-1">Account Email Address</label>
                   <div className="relative group">
                     <div className="absolute left-0 bottom-3 pl-2">
                       <Mail className="h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     </div>
                     <input 
                       type="email" 
-                      placeholder="name@university.ac.uk" 
+                      placeholder="name@example.com" 
                       className="flex w-full pl-10 h-12 bg-transparent border-0 border-b-2 border-border focus:ring-0 focus:outline-none focus:border-primary transition-all text-foreground"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -100,7 +109,7 @@ export default function ForgotPasswordPage() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      Send Recovery Link
+                      Send Reset Link
                       <Send className="h-4 w-4" />
                     </div>
                   )}
@@ -109,7 +118,7 @@ export default function ForgotPasswordPage() {
 
               <div className="mt-12 text-center">
                 <p className="text-xs text-muted-foreground/60 leading-relaxed italic">
-                  Cannot access your email? Please contact <span className="text-primary font-bold cursor-pointer hover:underline">Campus Support</span> for identity verification.
+                  Need organization verification assistance? Contact <span className="text-primary font-bold cursor-pointer hover:underline">HelpLift Support</span>.
                 </p>
               </div>
             </div>
@@ -122,9 +131,9 @@ export default function ForgotPasswordPage() {
             </div>
             
             <div className="space-y-3">
-              <h2 className="text-4xl font-black tracking-tight">Check your Inbox</h2>
-              <p className="text-muted-foreground text-lg">
-                A secure recovery link has been sent to <br />
+              <h2 className="text-3xl font-black tracking-tight">Check Your Email</h2>
+              <p className="text-muted-foreground text-base">
+                A secure password reset link has been sent to <br />
                 <span className="text-foreground font-bold underline decoration-primary/30 decoration-2">{email}</span>
               </p>
             </div>
@@ -138,7 +147,7 @@ export default function ForgotPasswordPage() {
                 Try a different email
               </Button>
               <p className="text-sm text-muted-foreground">
-                Didn't receive it? Check your spam or <span className="text-primary font-bold cursor-pointer hover:underline">Resend</span>
+                Didn't receive it? Check your spam folder or <span className="text-primary font-bold cursor-pointer hover:underline">Resend link</span>
               </p>
             </div>
           </div>
@@ -148,7 +157,7 @@ export default function ForgotPasswordPage() {
       {/* FOOTER STRIP */}
       <footer className="w-full py-8 text-center mt-auto">
          <p className="text-[10px] text-muted-foreground/40 uppercase tracking-[0.2em]">
-            Secure Student Authentication Protocol v2.5
+            HelpLift Community Ecosystem • POPIA & GDPR Compliant
          </p>
       </footer>
     </div>

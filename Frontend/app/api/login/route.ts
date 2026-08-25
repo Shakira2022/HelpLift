@@ -1,5 +1,6 @@
 
 import { NextResponse } from "next/server";
+<<<<<<< HEAD
 import {
   createSessionToken,
   SESSION_COOKIE_NAME,
@@ -43,6 +44,8 @@ const MOCK_USERS: MockUser[] = [
   },
 ];
 
+=======
+>>>>>>> e6578babbb4e2470c809a9ba0ee59038be43e844
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
@@ -55,12 +58,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Find user by email and password
-    const user = MOCK_USERS.find(
-      (mockUser) =>
-        mockUser.email.toLowerCase() === String(email).toLowerCase().trim() &&
-        mockUser.password === password
+    return NextResponse.json(
+      { success: false, message: "Login is unavailable until authentication is configured." },
+      { status: 503 }
     );
+<<<<<<< HEAD
 
     // 3. Invalid login
     if (!user) {
@@ -98,6 +100,8 @@ export async function POST(req: Request) {
     });
 
     return response;
+=======
+>>>>>>> e6578babbb4e2470c809a9ba0ee59038be43e844
   } catch (err) {
     console.error("Login error:", err);
 

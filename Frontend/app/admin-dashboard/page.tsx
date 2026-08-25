@@ -40,7 +40,6 @@ import {
   CalendarDays,
   ReceiptText,
   FolderCheck,
-  Flag,
   ListChecks,
   LogOut,
 } from "lucide-react"
@@ -57,7 +56,6 @@ type AdminTab =
   | "gift-library"
   | "categories"
   | "reports"
-  | "compliance"
   | "support"
   | "settings"
   | "activity"
@@ -418,7 +416,6 @@ const supportTickets = [
     type: "Organization Support",
     priority: "High",
     status: "Open",
-    assignedTo: "Verification Admin",
     createdDate: "23 May 2026",
   },
   {
@@ -428,7 +425,6 @@ const supportTickets = [
     type: "Donation Support",
     priority: "Medium",
     status: "In Progress",
-    assignedTo: "Support Admin",
     createdDate: "22 May 2026",
   },
   {
@@ -438,7 +434,6 @@ const supportTickets = [
     type: "Compliance",
     priority: "High",
     status: "Open",
-    assignedTo: "Super Admin",
     createdDate: "21 May 2026",
   },
 ]
@@ -541,6 +536,8 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard")
   const [isMoreOpen, setIsMoreOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedUser, setSelectedUser] = useState<(typeof users)[number] | null>(null)
+  const [userStatuses, setUserStatuses] = useState<Record<string, string>>({})
 
   const primaryTabs = [
     { id: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
@@ -556,7 +553,6 @@ export default function AdminDashboardPage() {
     { id: "needs" as const, label: "Needs", icon: FolderCheck },
     { id: "gift-library" as const, label: "Gift Library", icon: Gift },
     { id: "categories" as const, label: "Categories", icon: Tag },
-    { id: "compliance" as const, label: "Compliance", icon: Flag },
     { id: "support" as const, label: "Support Tickets", icon: Ticket },
     { id: "activity" as const, label: "Activity Logs", icon: Activity },
     { id: "settings" as const, label: "Settings", icon: Settings },
@@ -673,7 +669,7 @@ export default function AdminDashboardPage() {
                 {activeTabLabel}
               </h1>
               <p className="text-slate-500 text-lg mt-3 max-w-3xl leading-relaxed">
-                Manage verification, approvals, users, platform activity, reporting, compliance, and support from one central admin workspace.
+                Manage approvals, users, platform activity, reporting, and support from one central admin workspace.
               </p>
             </div>
 
@@ -698,17 +694,55 @@ export default function AdminDashboardPage() {
           {activeTab === "need-approvals" && <NeedApprovalsTab />}
           {activeTab === "gift-approvals" && <GiftApprovalsTab />}
           {activeTab === "organizations" && <OrganizationsTab />}
-          {activeTab === "users" && <UsersTab />}
+          {activeTab === "users" && <UsersTab userStatuses={userStatuses} onManage={setSelectedUser} />}
           {activeTab === "needs" && <NeedsManagementTab />}
           {activeTab === "gift-library" && <GiftLibraryManagementTab />}
           {activeTab === "categories" && <CategoriesTab />}
           {activeTab === "reports" && <ReportsTab />}
-          {activeTab === "compliance" && <ComplianceTab />}
           {activeTab === "support" && <SupportTab />}
           {activeTab === "settings" && <SettingsTab />}
           {activeTab === "activity" && <ActivityTab />}
         </section>
       </main>
+
+      <SideSheet
+        open={Boolean(selectedUser)}
+        title="Manage user"
+        subtitle="Review account details and update access status."
+        onClose={() => setSelectedUser(null)}
+      >
+        {selectedUser && (
+          <div className="space-y-5">
+            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="text-xl font-semibold text-slate-900">{selectedUser.name}</h4>
+                  <p className="text-sm text-slate-500 mt-1">{selectedUser.userType} · {selectedUser.role}</p>
+                </div>
+                <Badge tone={getStatusTone(userStatuses[selectedUser.id] || selectedUser.accountStatus)}>
+                  {userStatuses[selectedUser.id] || selectedUser.accountStatus}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <InfoRow icon={Mail} label="Email" value={selectedUser.email} />
+              <InfoRow icon={Phone} label="Phone" value={selectedUser.phone} />
+              <InfoRow icon={ShieldCheck} label="Verification" value={selectedUser.verificationStatus} />
+              <InfoRow icon={CalendarDays} label="Last login" value={selectedUser.lastLogin} />
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <PrimaryButton onClick={() => setUserStatuses((current) => ({ ...current, [selectedUser.id]: "Active" }))}>
+                <UserCheck className="w-4 h-4" /> Activate account
+              </PrimaryButton>
+              <SecondaryButton onClick={() => setUserStatuses((current) => ({ ...current, [selectedUser.id]: "Suspended" }))}>
+                <UserX className="w-4 h-4" /> Suspend account
+              </SecondaryButton>
+            </div>
+          </div>
+        )}
+      </SideSheet>
 
       <SideSheet
         open={isMoreOpen}
@@ -970,7 +1004,13 @@ function OrganizationsTab() {
   )
 }
 
-function UsersTab() {
+function UsersTab({
+  userStatuses,
+  onManage,
+}: {
+  userStatuses: Record<string, string>
+  onManage: (user: (typeof users)[number]) => void
+}) {
   return (
     <ManagementTable
       icon={Users}
@@ -981,10 +1021,10 @@ function UsersTab() {
         <NameCell key="name" title={user.name} subtitle={user.email} />,
         user.userType,
         user.role,
-        <Badge key="status" tone={getStatusTone(user.accountStatus)}>{user.accountStatus}</Badge>,
+        <Badge key="status" tone={getStatusTone(userStatuses[user.id] || user.accountStatus)}>{userStatuses[user.id] || user.accountStatus}</Badge>,
         user.verificationStatus,
         user.anonymousPreference,
-        <SecondaryButton key="action"><Settings className="w-4 h-4" /> Manage</SecondaryButton>,
+        <SecondaryButton key="action" onClick={() => onManage(user)}><Settings className="w-4 h-4" /> Manage</SecondaryButton>,
       ])}
     />
   )
@@ -1105,48 +1145,19 @@ function ReportsTab() {
   )
 }
 
-function ComplianceTab() {
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <SectionHeader
-        icon={Flag}
-        title="Compliance"
-        subtitle="Monitor duplicate needs, suspicious records, privacy risks, and platform safety issues."
-      />
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <AlertCard tone="rose" title="3 duplicate warnings" text="Needs with similar descriptions or locations require manual checking." />
-        <AlertCard tone="amber" title="2 privacy review items" text="Supporting documents may contain sensitive beneficiary information." />
-        <AlertCard tone="blue" title="6 records need audit notes" text="Admin review notes are recommended for higher-risk decisions." />
-      </div>
-
-      <SectionCard className="p-8">
-        <SectionHeader icon={AlertTriangle} title="Flagged records" subtitle="Records requiring admin attention before approval or publication." />
-
-        <div className="space-y-3">
-          <FlaggedItem title="After-school Meal Support" text="Similar need posted by same organization 18 days ago." status="Duplicate Warning" />
-          <FlaggedItem title="Community Activity Report" text="Document upload includes unclear dates and programme details." status="Review Required" />
-          <FlaggedItem title="Clinic Transport Assistance" text="Beneficiary details must be anonymized before approval." status="Privacy Check" />
-        </div>
-      </SectionCard>
-    </div>
-  )
-}
-
 function SupportTab() {
   return (
     <ManagementTable
       icon={Ticket}
       title="Support tickets"
       subtitle="Handle support requests, verification questions, donation queries, and platform issues."
-      headers={["Ticket", "Requester", "Type", "Priority", "Status", "Assigned", "Action"]}
+      headers={["Ticket", "Requester", "Type", "Priority", "Status", "Action"]}
       rows={supportTickets.map((ticket) => [
         <NameCell key="ticket" title={ticket.subject} subtitle={ticket.id} />,
         ticket.requester,
         ticket.type,
         <Badge key="priority" tone={getStatusTone(ticket.priority)}>{ticket.priority}</Badge>,
         <Badge key="status" tone={getStatusTone(ticket.status)}>{ticket.status}</Badge>,
-        ticket.assignedTo,
         <SecondaryButton key="action"><MessageCircle className="w-4 h-4" /> Open</SecondaryButton>,
       ])}
     />

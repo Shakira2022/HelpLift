@@ -5,6 +5,7 @@ require("dotenv").config();
 
 const organizationRoutes = require("./routes/organizationRoutes");
 const giverRoutes = require("./routes/giverRoutes");
+const userRoutes = require("./routes/userRoutes");
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/givers", giverRoutes);
+app.use("/api/users", userRoutes);
 
 app.listen(PORT, () => {
     console.log(`HelpLift server is running on port ${PORT}`);

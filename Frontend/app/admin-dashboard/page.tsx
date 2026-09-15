@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   HeartHandshake,
@@ -457,6 +457,22 @@ const reportMetrics = [
   { label: "Impact story engagement", value: "18,420", trend: "views and interactions" },
 ]
 
+
+async function adminApi(path: string, options: RequestInit = {}) {
+  const response = await fetch(`/api/backend/${path}`, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.message || "Request failed")
+  return data
+}
+
+function mapAdminUser(u: any): (typeof users)[number] {
+  return { id:String(u._id), name:u.name||"User", email:u.email||"", phone:u.phone||"", userType:u.role === "organization" ? "Organization" : u.role === "admin" ? "Admin" : "Giver", role:u.role === "admin" ? "Admin" : u.role === "organization" ? "Organization Admin" : "Individual", accountStatus:u.status||"Active", verificationStatus:u.emailVerified ? "Email Verified" : "Pending", joinedDate:u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-ZA") : "", lastLogin:u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("en-ZA") : "Never", anonymousPreference:u.preferences?.anonymousPreference||"Not set" }
+}
+function mapAdminOrg(o:any):(typeof organizations)[number]{ return {id:String(o._id),name:o.name||"Organization",type:o.type||"Organization",location:[o.city,o.province].filter(Boolean).join(", ")||o.address||"Not specified",verificationStatus:o.isVerified?"Verified":o.verificationStatus||"Pending",accountStatus:o.userId?.status||"Active",postedNeeds:0,fulfilledNeeds:0,joinedDate:o.createdAt?new Date(o.createdAt).toLocaleDateString("en-ZA"):"",lastActivity:o.updatedAt?new Date(o.updatedAt).toLocaleDateString("en-ZA"):""} }
+function mapOrgApproval(o:any):(typeof organizationApprovals)[number]{return{id:String(o._id),name:o.name||"Organization",type:o.type||"Organization",registrationNumber:o.registrationNumber||"Not provided",contactPerson:o.contact||"Not provided",contactEmail:o.email||"",contactPhone:o.phone||"",address:[o.address,o.city,o.province].filter(Boolean).join(", "),mission:o.mission||o.description||"",submittedDate:o.createdAt?new Date(o.createdAt).toLocaleDateString("en-ZA"):"",verificationStatus:o.verificationStatus||"Pending Review",documents:(o.documents||[]).map((d:any)=>d.name||"Document"),riskNote:"Review submitted organization information and documents."}}
+function mapNeedApproval(n:any):(typeof needApprovals)[number]{return{id:String(n._id),title:n.title||"Need",organization:n.organizationId?.name||"Organization",category:n.category||"Other",urgency:n.urgency||"Medium",location:n.location||"",beneficiaryType:n.beneficiaryType||"Community",quantity:n.quantity||"Not specified",submittedDate:n.createdAt?new Date(n.createdAt).toLocaleDateString("en-ZA"):"",approvalStatus:n.status||"Pending",duplicateWarning:"Not automatically detected",description:n.description||""}}
+function mapGiftApproval(g:any):(typeof giftApprovals)[number]{return{id:String(g._id),title:g.title||"Gift offering",giver:g.anonymous?"Anonymous Giver":g.giverId?.publicDisplayName||g.giverId?.name||"Giver",giverType:"Giver",offeringType:g.type||"Goods",category:g.category||"Other",quantity:g.quantityValue||"Not specified",location:g.location||"",expiryDate:g.expiryDate?new Date(g.expiryDate).toLocaleDateString("en-ZA"):"Not specified",anonymousStatus:g.anonymous?"Anonymous":"Public",approvalStatus:g.status||"Pending",description:g.description||""}}
+
 // -------------------- Helpers --------------------
 const toneClasses: Record<StatusTone, string> = {
   blue: "bg-blue-50 text-blue-700 border-blue-100",
@@ -538,6 +554,36 @@ export default function AdminDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedUser, setSelectedUser] = useState<(typeof users)[number] | null>(null)
   const [userStatuses, setUserStatuses] = useState<Record<string, string>>({})
+  const [liveUsers, setLiveUsers] = useState<typeof users>([])
+  const [liveOrganizations, setLiveOrganizations] = useState<typeof organizations>([])
+  const [liveOrgApprovals, setLiveOrgApprovals] = useState<typeof organizationApprovals>([])
+  const [liveNeedApprovals, setLiveNeedApprovals] = useState<typeof needApprovals>([])
+  const [liveGiftApprovals, setLiveGiftApprovals] = useState<typeof giftApprovals>([])
+  const [liveTickets, setLiveTickets] = useState<any[]>([])
+  const [liveActivity, setLiveActivity] = useState<any[]>([])
+  const [dataVersion, setDataVersion] = useState(0)
+
+  useEffect(() => {
+    let cancelled=false
+    adminApi("dashboard").then((data)=>{
+      if(cancelled||data.role!=="admin") return
+      const mappedUsers=(data.users||[]).map(mapAdminUser); setLiveUsers(mappedUsers)
+      const mappedOrgs=(data.organizations||[]).map(mapAdminOrg); setLiveOrganizations(mappedOrgs)
+      setLiveOrgApprovals((data.organizations||[]).filter((o:any)=>!o.isVerified).map(mapOrgApproval))
+      setLiveNeedApprovals((data.needs||[]).filter((n:any)=>n.status==="Pending Approval").map(mapNeedApproval))
+      setLiveGiftApprovals((data.gifts||[]).filter((g:any)=>g.status==="Pending Approval").map(mapGiftApproval))
+      setLiveTickets(data.tickets||[]); setLiveActivity(data.activity||[])
+    }).catch((error)=>console.error("Failed to load admin dashboard:",error))
+    return()=>{cancelled=true}
+  },[dataVersion])
+
+  const persistUserStatus = async (id:string,status:string) => {
+    if(!/^[a-f\d]{24}$/i.test(id)) return alert("This is preview data. MongoDB-backed users are actionable after registration.")
+    try{await adminApi(`admin/users/${id}/status`,{method:"PUT",body:JSON.stringify({status})});setUserStatuses(c=>({...c,[id]:status}));setDataVersion(v=>v+1)}catch(e:any){alert(e.message)}
+  }
+  const reviewOrganization=async(id:string,action:"approve"|"reject")=>{if(!/^[a-f\d]{24}$/i.test(id))return alert("Preview record only.");try{await adminApi(`admin/organizations/${id}/approval`,{method:"POST",body:JSON.stringify({action})});setDataVersion(v=>v+1)}catch(e:any){alert(e.message)}}
+  const reviewNeed=async(id:string,action:"approve"|"reject")=>{if(!/^[a-f\d]{24}$/i.test(id))return alert("Preview record only.");try{await adminApi(`needs/${id}/approval`,{method:"POST",body:JSON.stringify({action})});setDataVersion(v=>v+1)}catch(e:any){alert(e.message)}}
+  const reviewGift=async(id:string,action:"approve"|"reject")=>{if(!/^[a-f\d]{24}$/i.test(id))return alert("Preview record only.");try{await adminApi(`gift-offerings/${id}/approval`,{method:"POST",body:JSON.stringify({action})});setDataVersion(v=>v+1)}catch(e:any){alert(e.message)}}
 
   const primaryTabs = [
     { id: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
@@ -690,11 +736,11 @@ export default function AdminDashboardPage() {
           </div>
 
           {activeTab === "dashboard" && <DashboardTab setActiveTab={handleTabChange} />}
-          {activeTab === "organization-approvals" && <OrganizationApprovalsTab />}
-          {activeTab === "need-approvals" && <NeedApprovalsTab />}
-          {activeTab === "gift-approvals" && <GiftApprovalsTab />}
-          {activeTab === "organizations" && <OrganizationsTab />}
-          {activeTab === "users" && <UsersTab userStatuses={userStatuses} onManage={setSelectedUser} />}
+          {activeTab === "organization-approvals" && <OrganizationApprovalsTab items={liveOrgApprovals.length ? liveOrgApprovals : organizationApprovals} onReview={reviewOrganization} />}
+          {activeTab === "need-approvals" && <NeedApprovalsTab items={liveNeedApprovals.length ? liveNeedApprovals : needApprovals} onReview={reviewNeed} />}
+          {activeTab === "gift-approvals" && <GiftApprovalsTab items={liveGiftApprovals.length ? liveGiftApprovals : giftApprovals} onReview={reviewGift} />}
+          {activeTab === "organizations" && <OrganizationsTab items={liveOrganizations.length ? liveOrganizations : organizations} />}
+          {activeTab === "users" && <UsersTab items={liveUsers.length ? liveUsers : users} userStatuses={userStatuses} onManage={setSelectedUser} />}
           {activeTab === "needs" && <NeedsManagementTab />}
           {activeTab === "gift-library" && <GiftLibraryManagementTab />}
           {activeTab === "categories" && <CategoriesTab />}
@@ -733,10 +779,10 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="flex flex-col gap-3 pt-2">
-              <PrimaryButton onClick={() => setUserStatuses((current) => ({ ...current, [selectedUser.id]: "Active" }))}>
+              <PrimaryButton onClick={() => persistUserStatus(selectedUser.id, "Active")}>
                 <UserCheck className="w-4 h-4" /> Activate account
               </PrimaryButton>
-              <SecondaryButton onClick={() => setUserStatuses((current) => ({ ...current, [selectedUser.id]: "Suspended" }))}>
+              <SecondaryButton onClick={() => persistUserStatus(selectedUser.id, "Suspended")}>
                 <UserX className="w-4 h-4" /> Suspend account
               </SecondaryButton>
             </div>
@@ -870,7 +916,7 @@ function DashboardTab({ setActiveTab }: { setActiveTab: (tab: AdminTab) => void 
   )
 }
 
-function OrganizationApprovalsTab() {
+function OrganizationApprovalsTab({ items, onReview }: { items: typeof organizationApprovals; onReview: (id:string, action:"approve"|"reject")=>void }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader
@@ -880,7 +926,7 @@ function OrganizationApprovalsTab() {
       />
 
       <div className="space-y-5">
-        {organizationApprovals.map((org) => (
+        {items.map((org) => (
           <SectionCard key={org.id} className="p-6">
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
@@ -893,9 +939,9 @@ function OrganizationApprovalsTab() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <PrimaryButton><Check className="w-4 h-4" /> Approve</PrimaryButton>
+                <PrimaryButton onClick={() => onReview(org.id, "approve")}><Check className="w-4 h-4" /> Approve</PrimaryButton>
                 <SecondaryButton><AlertTriangle className="w-4 h-4" /> Request Info</SecondaryButton>
-                <SecondaryButton><X className="w-4 h-4" /> Reject</SecondaryButton>
+                <SecondaryButton onClick={() => onReview(org.id, "reject")}><X className="w-4 h-4" /> Reject</SecondaryButton>
               </div>
             </div>
 
@@ -922,7 +968,7 @@ function OrganizationApprovalsTab() {
   )
 }
 
-function NeedApprovalsTab() {
+function NeedApprovalsTab({ items, onReview }: { items: typeof needApprovals; onReview: (id:string, action:"approve"|"reject")=>void }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader
@@ -932,7 +978,7 @@ function NeedApprovalsTab() {
       />
 
       <div className="space-y-5">
-        {needApprovals.map((need) => (
+        {items.map((need) => (
           <ApprovalCard
             key={need.id}
             title={need.title}
@@ -946,6 +992,8 @@ function NeedApprovalsTab() {
               ["Submitted", need.submittedDate],
               ["Duplicate warning", need.duplicateWarning],
             ]}
+            onApprove={() => onReview(need.id, "approve")}
+            onReject={() => onReview(need.id, "reject")}
           />
         ))}
       </div>
@@ -953,7 +1001,7 @@ function NeedApprovalsTab() {
   )
 }
 
-function GiftApprovalsTab() {
+function GiftApprovalsTab({ items, onReview }: { items: typeof giftApprovals; onReview: (id:string, action:"approve"|"reject")=>void }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader
@@ -963,7 +1011,7 @@ function GiftApprovalsTab() {
       />
 
       <div className="space-y-5">
-        {giftApprovals.map((giftItem) => (
+        {items.map((giftItem) => (
           <ApprovalCard
             key={giftItem.id}
             title={giftItem.title}
@@ -977,6 +1025,8 @@ function GiftApprovalsTab() {
               ["Location", giftItem.location],
               ["Expiry date", giftItem.expiryDate],
             ]}
+            onApprove={() => onReview(giftItem.id, "approve")}
+            onReject={() => onReview(giftItem.id, "reject")}
           />
         ))}
       </div>
@@ -984,14 +1034,14 @@ function GiftApprovalsTab() {
   )
 }
 
-function OrganizationsTab() {
+function OrganizationsTab({ items }: { items: typeof organizations }) {
   return (
     <ManagementTable
       icon={ShieldCheck}
       title="Organization management"
       subtitle="Manage verified, pending, active, suspended, and inactive organizations."
       headers={["Organization", "Type", "Location", "Verification", "Needs", "Activity", "Action"]}
-      rows={organizations.map((org) => [
+      rows={items.map((org) => [
         <NameCell key="name" title={org.name} subtitle={org.id} />,
         org.type,
         org.location,
@@ -1005,9 +1055,11 @@ function OrganizationsTab() {
 }
 
 function UsersTab({
+  items,
   userStatuses,
   onManage,
 }: {
+  items: typeof users
   userStatuses: Record<string, string>
   onManage: (user: (typeof users)[number]) => void
 }) {
@@ -1017,7 +1069,7 @@ function UsersTab({
       title="User management"
       subtitle="Manage givers, organizations, admins, account statuses, and verification states."
       headers={["User", "Type", "Role", "Status", "Verification", "Anonymous", "Action"]}
-      rows={users.map((user) => [
+      rows={items.map((user) => [
         <NameCell key="name" title={user.name} subtitle={user.email} />,
         user.userType,
         user.role,
@@ -1236,11 +1288,15 @@ function ApprovalCard({
   subtitle,
   badges,
   details,
+  onApprove,
+  onReject,
 }: {
   title: string
   subtitle: string
   badges: string[]
   details: [string, string][]
+  onApprove?: () => void
+  onReject?: () => void
 }) {
   return (
     <SectionCard className="p-6">
@@ -1256,9 +1312,9 @@ function ApprovalCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <PrimaryButton><Check className="w-4 h-4" /> Approve</PrimaryButton>
+          <PrimaryButton onClick={onApprove}><Check className="w-4 h-4" /> Approve</PrimaryButton>
           <SecondaryButton><AlertTriangle className="w-4 h-4" /> Request Info</SecondaryButton>
-          <SecondaryButton><X className="w-4 h-4" /> Reject</SecondaryButton>
+          <SecondaryButton onClick={onReject}><X className="w-4 h-4" /> Reject</SecondaryButton>
         </div>
       </div>
 

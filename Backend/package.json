@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "check": "node --check server.js && node --check routes/userRoutes.js && node --check routes/platformRoutes.js",
+    "create-admin": "node create-admin.js"
   },
   "keywords": [],
   "author": "",

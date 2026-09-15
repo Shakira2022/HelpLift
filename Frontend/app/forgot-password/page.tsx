@@ -31,11 +31,17 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setIsLoading(true)
     
-    // API integration point for backend JWT reset link
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    
-    setIsLoading(false)
-    setIsSubmitted(true)
+    try {
+      const response = await fetch("/api/password-change", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "request", email }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || "Unable to request password reset")
+      if (data.resetToken) console.info("HelpLift development reset token:", data.resetToken)
+      setIsSubmitted(true)
+    } catch (error: any) {
+      alert(error.message || "Unable to request password reset")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

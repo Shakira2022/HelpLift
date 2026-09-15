@@ -1,35 +1,3 @@
-import { NextResponse } from "next/server";
-
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const { action } = body;
-
-    // --- PHASE 1: REQUEST ---
-    if (action === "request") {
-      // Simulate token generation and email sending
-      console.log("Mock: Reset token generated for email:", body.email);
-      
-      return NextResponse.json({ 
-          success: true, 
-          message: "Token generated (Test Mode: Check console logs for token)" 
-      });
-    }
-
-    // --- PHASE 2: VERIFY AND CHANGE ---
-    if (action === "verify") {
-      console.log("Mock: Password updated for user:", body.userId);
-
-      return NextResponse.json({ 
-          success: true, 
-          message: "Password updated successfully (Test Mode)" 
-      });
-    }
-
-    return NextResponse.json({ success: false, message: "Invalid action" }, { status: 400 });
-
-  } catch (err: any) {
-    console.error("Password Change Error:", err);
-    return NextResponse.json({ success: false, message: "Server error: " + err.message }, { status: 500 });
-  }
-}
+import { NextRequest, NextResponse } from "next/server"
+import { BACKEND_TOKEN_COOKIE, BACKEND_URL } from "@/lib/backend"
+export async function POST(req: NextRequest){ try{const body=await req.json(); if(body.action==="request"){const r=await fetch(`${BACKEND_URL}/api/users/forgot-password`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:body.email})});return NextResponse.json(await r.json(),{status:r.status})} if(body.action==="verify"){const r=await fetch(`${BACKEND_URL}/api/users/reset-password`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:body.token,password:body.password||body.newPassword})});return NextResponse.json(await r.json(),{status:r.status})} if(body.action==="change"){const token=req.cookies.get(BACKEND_TOKEN_COOKIE)?.value;if(!token)return NextResponse.json({success:false,message:"Authentication required"},{status:401});const r=await fetch(`${BACKEND_URL}/api/users/change-password`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify(body)});return NextResponse.json(await r.json(),{status:r.status})} return NextResponse.json({success:false,message:"Invalid action"},{status:400})}catch{return NextResponse.json({success:false,message:"Password service is unavailable"},{status:503})} }

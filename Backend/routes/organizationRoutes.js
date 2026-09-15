@@ -15,7 +15,7 @@ router.post("/", async (req, res) => {
     }
 });
 
-
+module.exports = router;
 
 router.get("/", async (req, res) => {
   try {
@@ -71,4 +71,3 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
-module.exports = router;

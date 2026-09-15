@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   HeartHandshake,
@@ -395,6 +395,38 @@ const notifications = [
   },
 ]
 
+
+async function apiRequest(path: string, options: RequestInit = {}) {
+  const response = await fetch(`/api/backend/${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.message || "Request failed")
+  return data
+}
+
+function mapBackendNeed(item: any): (typeof recommendedNeeds)[number] {
+  const org = item.organizationId || {}
+  return {
+    id: String(item._id),
+    title: item.title || "Untitled need",
+    organization: org.name || "Verified organization",
+    verified: Boolean(org.isVerified),
+    category: item.category || "Other",
+    urgency: item.urgency || "Medium",
+    location: item.location || [org.city, org.province].filter(Boolean).join(", ") || "Not specified",
+    status: item.status || "Open",
+    progress: Number(item.progress || 0),
+    anonymousSupporters: Number(item.anonymousSupporters || 0),
+    datePosted: item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-ZA") : "",
+    dueDate: item.dueDate ? new Date(item.dueDate).toLocaleDateString("en-ZA") : "Not specified",
+    quantity: item.quantity || "Not specified",
+    value: Number(item.targetValue || 0) > 0 ? `R${Number(item.targetValue).toLocaleString("en-ZA")}` : "Not specified",
+    description: item.description || "",
+  }
+}
+
 // -------------------- Helpers --------------------
 const toneClasses: Record<StatusTone, string> = {
   blue: "bg-blue-50 text-blue-700 border-blue-100",
@@ -486,6 +518,23 @@ export default function GiverDashboardPage() {
   const [categoryFilter, setCategoryFilter] = useState("All")
   const [sheetType, setSheetType] = useState<SheetType>(null)
   const [selectedNeed, setSelectedNeed] = useState<(typeof recommendedNeeds)[number] | null>(recommendedNeeds[0])
+  const [liveNeeds, setLiveNeeds] = useState<typeof recommendedNeeds>([])
+  const [dashboardVersion, setDashboardVersion] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    apiRequest("dashboard")
+      .then((data) => {
+        if (cancelled || data.role !== "giver") return
+        const mapped = Array.isArray(data.needs) ? data.needs.map(mapBackendNeed) : []
+        setLiveNeeds(mapped)
+        if (mapped[0]) setSelectedNeed(mapped[0])
+      })
+      .catch((error) => console.error("Failed to load giver dashboard:", error))
+    return () => { cancelled = true }
+  }, [dashboardVersion])
+
+  const availableNeeds = liveNeeds.length > 0 ? liveNeeds : recommendedNeeds
 
   const navTabs = [
     { id: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
@@ -506,12 +555,12 @@ export default function GiverDashboardPage() {
   const categories = ["All", "Education", "Food", "Clothing", "Transport"]
 
   const filteredNeeds = useMemo(() => {
-    return recommendedNeeds.filter((need) => {
+    return availableNeeds.filter((need) => {
       const matchesSearch = `${need.title} ${need.organization} ${need.category} ${need.location}`.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesCategory = categoryFilter === "All" || need.category === categoryFilter
       return matchesSearch && matchesCategory
     })
-  }, [searchQuery, categoryFilter])
+  }, [searchQuery, categoryFilter, availableNeeds])
 
   const unreadMessages = messages.filter((message) => message.unread).length
   const unreadNotifications = notifications.filter((notification) => !notification.read).length
@@ -597,7 +646,7 @@ export default function GiverDashboardPage() {
 
           <div className="max-w-6xl mx-auto">
             <div className={activeTab === "dashboard" ? "mt-0" : "mt-8"}>
-              {activeTab === "dashboard" && <DashboardTab setActiveTab={setActiveTab} openSheet={openSheet} />}
+              {activeTab === "dashboard" && <DashboardTab setActiveTab={setActiveTab} openSheet={openSheet} needs={availableNeeds} />}
               {activeTab === "browse" && (
                 <BrowseNeedsTab
                   needs={filteredNeeds}
@@ -617,7 +666,7 @@ export default function GiverDashboardPage() {
               {activeTab === "notifications" && <NotificationsTab />}
               {activeTab === "preferences" && <PreferencesTab />}
               {activeTab === "settings" && <SettingsTab />}
-              {activeTab === "profile" && <ProfileTab setActiveTab={setActiveTab} openSheet={openSheet} />}
+              {activeTab === "profile" && <ProfileTab setActiveTab={setActiveTab} openSheet={openSheet} defaultNeed={availableNeeds[0] || null} />}
             </div>
           </div>
         </section>
@@ -629,9 +678,9 @@ export default function GiverDashboardPage() {
         subtitle={sheetType === "need-details" ? "Use these shortcuts on smaller screens." : "Complete the details below using mock data for now."}
         onClose={() => setSheetType(null)}
       >
-        {sheetType === "donate" && <DonateSheet need={selectedNeed} />}
-        {sheetType === "interest" && <InterestSheet need={selectedNeed} />}
-        {sheetType === "offering" && <OfferingSheet />}
+        {sheetType === "donate" && <DonateSheet need={selectedNeed} onSaved={() => { setSheetType(null); setDashboardVersion((v) => v + 1) }} />}
+        {sheetType === "interest" && <InterestSheet need={selectedNeed} onSaved={() => { setSheetType(null); setDashboardVersion((v) => v + 1) }} />}
+        {sheetType === "offering" && <OfferingSheet onSaved={() => { setSheetType(null); setDashboardVersion((v) => v + 1) }} />}
         {sheetType === "need-details" && (
           <div className="space-y-3">
             {[...navTabs, ...moreTabs, { id: "profile" as const, label: "Profile", icon: User }].map((tab) => {
@@ -664,9 +713,11 @@ export default function GiverDashboardPage() {
 function DashboardIntro({
   setActiveTab,
   openSheet,
+  defaultNeed,
 }: {
   setActiveTab: (tab: GiverTab) => void
   openSheet: (type: SheetType, need?: (typeof recommendedNeeds)[number]) => void
+  defaultNeed?: (typeof recommendedNeeds)[number] | null
 }) {
   return (
     <div className="relative overflow-hidden bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white/85 md:backdrop-blur-xl md:border md:border-white md:rounded-[2rem] md:p-10 md:shadow-sm">
@@ -694,7 +745,7 @@ function DashboardIntro({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <PrimaryButton onClick={() => setActiveTab("browse")}><Search className="w-4 h-4" /> Browse Needs</PrimaryButton>
-          <SecondaryButton onClick={() => openSheet("donate", recommendedNeeds[0])}><Banknote className="w-4 h-4" /> Donate</SecondaryButton>
+          <SecondaryButton onClick={() => openSheet("donate", defaultNeed || undefined)}><Banknote className="w-4 h-4" /> Donate</SecondaryButton>
           <SecondaryButton onClick={() => openSheet("offering")}><Gift className="w-4 h-4" /> Post Offering</SecondaryButton>
           <SecondaryButton onClick={() => setActiveTab("preferences")}><SlidersHorizontal className="w-4 h-4" /> Preferences</SecondaryButton>
         </div>
@@ -706,9 +757,11 @@ function DashboardIntro({
 function DashboardTab({
   setActiveTab,
   openSheet,
+  needs,
 }: {
   setActiveTab: (tab: GiverTab) => void
   openSheet: (type: SheetType, need?: (typeof recommendedNeeds)[number]) => void
+  needs: typeof recommendedNeeds
 }) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -732,7 +785,7 @@ function DashboardTab({
           />
 
           <div className="space-y-4">
-            {recommendedNeeds.slice(0, 3).map((need) => (
+            {needs.slice(0, 3).map((need) => (
               <NeedRow key={need.id} need={need} openSheet={openSheet} />
             ))}
           </div>
@@ -1171,9 +1224,11 @@ function SettingsTab() {
 function ProfileTab({
   setActiveTab,
   openSheet,
+  defaultNeed,
 }: {
   setActiveTab: (tab: GiverTab) => void
   openSheet: (type: SheetType, need?: (typeof recommendedNeeds)[number]) => void
+  defaultNeed: (typeof recommendedNeeds)[number] | null
 }) {
   const router = useRouter()
 
@@ -1238,7 +1293,7 @@ function ProfileTab({
             >
               <Search className="w-4 h-4" /> Browse Needs
             </button>
-            <SecondaryButton onClick={() => openSheet("donate", recommendedNeeds[0])}>
+            <SecondaryButton onClick={() => openSheet("donate", defaultNeed || undefined)}>
               <Banknote className="w-4 h-4" /> Donate
             </SecondaryButton>
             <SecondaryButton onClick={() => openSheet("offering")}>
@@ -1354,7 +1409,7 @@ function NeedCard({
           <p className="text-slate-500 mt-2">{need.organization}</p>
           <p className="text-slate-600 mt-4 leading-relaxed">{need.description}</p>
         </div>
-        <button className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-white transition-all shrink-0">
+        <button onClick={async () => { try { await apiRequest(`needs/${need.id}/save`, { method: "POST" }); alert("Saved needs updated.") } catch (e: any) { alert(e.message) } }} className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-white transition-all shrink-0">
           <Bookmark className="w-5 h-5" />
         </button>
       </div>
@@ -1435,82 +1490,40 @@ function ActivityRow({ item }: { item: (typeof interests)[number] }) {
 }
 
 // -------------------- Sheets --------------------
-function DonateSheet({ need }: { need: (typeof recommendedNeeds)[number] | null }) {
+function DonateSheet({ need, onSaved }: { need: (typeof recommendedNeeds)[number] | null; onSaved: () => void }) {
+  const [amount, setAmount] = useState("500")
+  const [anonymous, setAnonymous] = useState(true)
+  const [receipt, setReceipt] = useState(true)
+  const [message, setMessage] = useState("Thank you for the work you are doing.")
+  const submit = async () => {
+    if (!need || !/^[a-f\d]{24}$/i.test(need.id)) return alert("This is preview data. Ask an organization to publish a MongoDB-backed need first.")
+    const numeric = Number(amount.replace(/[^0-9.]/g, ""))
+    if (!Number.isFinite(numeric) || numeric <= 0) return alert("Enter a valid donation amount.")
+    try { await apiRequest("contributions", { method: "POST", body: JSON.stringify({ needId: need.id, type: "Money", amount: numeric, valueText: `R${numeric}`, anonymous, requestReceipt: receipt, message }) }); alert("Donation recorded successfully."); onSaved() } catch (e: any) { alert(e.message) }
+  }
   return (
     <div className="space-y-5">
-      {need && (
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-          <div className="text-sm font-semibold text-slate-500">Need</div>
-          <div className="font-semibold text-slate-900 mt-1">{need.title}</div>
-          <div className="text-sm text-slate-500 mt-1">{need.organization}</div>
-        </div>
-      )}
-
-      <SettingsField label="Donation amount" value="R500" />
-
-      <div>
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Suggested amounts</div>
-        <div className="grid grid-cols-3 gap-2">
-          {["R100", "R250", "R500", "R1,000", "R2,500", "Custom"].map((amount) => (
-            <button key={amount} className="px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-blue-200 hover:text-blue-700">
-              {amount}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <ToggleRow title="Donate anonymously" text="Public pages will show Anonymous Giver." enabled />
-      <ToggleRow title="Request receipt" text="Keep a receipt for your records." enabled />
-
-      <SettingsField label="Optional message" value="Thank you for the work you are doing." />
-
-      <PrimaryButton><CheckCircle2 className="w-4 h-4" /> Confirm Donation</PrimaryButton>
+      {need && <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100"><div className="text-sm font-semibold text-slate-500">Need</div><div className="font-semibold text-slate-900 mt-1">{need.title}</div><div className="text-sm text-slate-500 mt-1">{need.organization}</div></div>}
+      <SettingsField label="Donation amount" value={amount} onChange={setAmount} />
+      <div><div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Suggested amounts</div><div className="grid grid-cols-3 gap-2">{["100", "250", "500", "1000", "2500"].map((v) => <button key={v} onClick={() => setAmount(v)} className="px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-blue-200 hover:text-blue-700">R{Number(v).toLocaleString()}</button>)}<button onClick={() => setAmount("")} className="px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-blue-200 hover:text-blue-700">Custom</button></div></div>
+      <ToggleRow title="Donate anonymously" text="Public pages will show Anonymous Giver." enabled={anonymous} onChange={setAnonymous} />
+      <ToggleRow title="Request receipt" text="Keep a receipt for your records." enabled={receipt} onChange={setReceipt} />
+      <SettingsField label="Optional message" value={message} onChange={setMessage} />
+      <PrimaryButton onClick={submit}><CheckCircle2 className="w-4 h-4" /> Confirm Donation</PrimaryButton>
     </div>
   )
 }
 
-function InterestSheet({ need }: { need: (typeof recommendedNeeds)[number] | null }) {
-  return (
-    <div className="space-y-5">
-      {need && (
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-          <div className="text-sm font-semibold text-slate-500">Need</div>
-          <div className="font-semibold text-slate-900 mt-1">{need.title}</div>
-          <div className="text-sm text-slate-500 mt-1">{need.organization}</div>
-        </div>
-      )}
-
-      <SettingsField label="Support type" value="Goods" />
-      <SettingsField label="Support description" value="Stationery packs and school supplies" />
-      <SettingsField label="Quantity / value" value="50 stationery packs" />
-      <SettingsField label="Availability" value="Available from Friday" />
-      <SettingsField label="Delivery preference" value="Drop-off" />
-      <ToggleRow title="Support anonymously" text="Hide public identity while keeping internal records." enabled={false} />
-      <SettingsField label="Message to organization" value="I can assist with supplies and arrange delivery." />
-
-      <PrimaryButton><Send className="w-4 h-4" /> Submit Interest</PrimaryButton>
-    </div>
-  )
+function InterestSheet({ need, onSaved }: { need: (typeof recommendedNeeds)[number] | null; onSaved: () => void }) {
+  const [supportType, setSupportType] = useState("Goods"), [description, setDescription] = useState("Stationery packs and school supplies"), [quantity, setQuantity] = useState("50 stationery packs"), [availability, setAvailability] = useState("Available from Friday"), [delivery, setDelivery] = useState("Drop-off"), [anonymous, setAnonymous] = useState(false), [message, setMessage] = useState("I can assist with supplies and arrange delivery.")
+  const submit=async()=>{ if(!need||!/^[a-f\d]{24}$/i.test(need.id))return alert("This is preview data. Ask an organization to publish a MongoDB-backed need first."); try{await apiRequest("interests",{method:"POST",body:JSON.stringify({needId:need.id,supportType,description,quantityValue:quantity,availability,deliveryPreference:delivery,anonymous,message})});alert("Interest submitted successfully.");onSaved()}catch(e:any){alert(e.message)} }
+  return <div className="space-y-5">{need&&<div className="p-4 rounded-2xl bg-slate-50 border border-slate-100"><div className="text-sm font-semibold text-slate-500">Need</div><div className="font-semibold text-slate-900 mt-1">{need.title}</div><div className="text-sm text-slate-500 mt-1">{need.organization}</div></div>}<SettingsField label="Support type" value={supportType} onChange={setSupportType}/><SettingsField label="Support description" value={description} onChange={setDescription}/><SettingsField label="Quantity / value" value={quantity} onChange={setQuantity}/><SettingsField label="Availability" value={availability} onChange={setAvailability}/><SettingsField label="Delivery preference" value={delivery} onChange={setDelivery}/><ToggleRow title="Support anonymously" text="Hide public identity while keeping internal records." enabled={anonymous} onChange={setAnonymous}/><SettingsField label="Message to organization" value={message} onChange={setMessage}/><PrimaryButton onClick={submit}><Send className="w-4 h-4"/> Submit Interest</PrimaryButton></div>
 }
 
-function OfferingSheet() {
-  return (
-    <div className="space-y-5">
-      <SettingsField label="Offering title" value="Stationery Packs Available" />
-      <SettingsField label="Offering type" value="Goods" />
-      <SettingsField label="Category" value="Education" />
-      <SettingsField label="Description" value="50 stationery packs with notebooks, pens, pencils, and rulers." />
-      <SettingsField label="Quantity / value" value="50 packs" />
-      <SettingsField label="Conditions" value="Must be collected or delivered within Gauteng." />
-      <SettingsField label="Location" value="Vereeniging" />
-      <SettingsField label="Availability dates" value="25 May - 10 June 2026" />
-      <SettingsField label="Expiry date" value="10 June 2026" />
-      <ToggleRow title="Offer anonymously" text="Show this offering publicly as Anonymous Giver." enabled={false} />
-      <ToggleRow title="Visible to verified organizations" text="Allow approved organizations to request this offering." enabled />
-      <SecondaryButton><UploadCloud className="w-4 h-4" /> Upload Images</SecondaryButton>
-      <PrimaryButton><Gift className="w-4 h-4" /> Submit Offering</PrimaryButton>
-    </div>
-  )
+function OfferingSheet({ onSaved }: { onSaved: () => void }) {
+  const [title,setTitle]=useState("Stationery Packs Available"),[type,setType]=useState("Goods"),[category,setCategory]=useState("Education"),[description,setDescription]=useState("50 stationery packs with notebooks, pens, pencils, and rulers."),[quantity,setQuantity]=useState("50 packs"),[conditions,setConditions]=useState("Must be collected or delivered within Gauteng."),[location,setLocation]=useState("Vereeniging"),[availability,setAvailability]=useState("25 May - 10 June 2026"),[expiry,setExpiry]=useState(""),[anonymous,setAnonymous]=useState(false),[visible,setVisible]=useState(true)
+  const submit=async()=>{try{await apiRequest("gift-offerings",{method:"POST",body:JSON.stringify({title,type,category,description,quantityValue:quantity,conditions,location,availability,expiryDate:expiry||undefined,anonymous,visibleToVerifiedOrganizations:visible})});alert("Offering submitted for approval.");onSaved()}catch(e:any){alert(e.message)}}
+  return <div className="space-y-5"><SettingsField label="Offering title" value={title} onChange={setTitle}/><SettingsField label="Offering type" value={type} onChange={setType}/><SettingsField label="Category" value={category} onChange={setCategory}/><SettingsField label="Description" value={description} onChange={setDescription}/><SettingsField label="Quantity / value" value={quantity} onChange={setQuantity}/><SettingsField label="Conditions" value={conditions} onChange={setConditions}/><SettingsField label="Location" value={location} onChange={setLocation}/><SettingsField label="Availability dates" value={availability} onChange={setAvailability}/><SettingsField label="Expiry date" value={expiry} onChange={setExpiry}/><ToggleRow title="Offer anonymously" text="Show this offering publicly as Anonymous Giver." enabled={anonymous} onChange={setAnonymous}/><ToggleRow title="Visible to verified organizations" text="Allow approved organizations to request this offering." enabled={visible} onChange={setVisible}/><SecondaryButton onClick={()=>alert("Image upload metadata is supported by the backend. Connect your preferred object storage before enabling binary uploads.")}><UploadCloud className="w-4 h-4"/> Upload Images</SecondaryButton><PrimaryButton onClick={submit}><Gift className="w-4 h-4"/> Submit Offering</PrimaryButton></div>
 }
 
 // -------------------- Small Reusable Components --------------------
@@ -1657,13 +1670,14 @@ function PreferenceTags({ label, values }: { label: string; values: string[] }) 
   )
 }
 
-function SettingsField({ label, value }: { label: string; value: string }) {
+function SettingsField({ label, value, onChange }: { label: string; value: string; onChange?: (value: string) => void }) {
   return (
     <label className="block">
       <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{label}</span>
       <input
         value={value}
-        readOnly
+        onChange={(e) => onChange?.(e.target.value)}
+        readOnly={!onChange}
         className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-semibold text-slate-700"
       />
     </label>
@@ -1674,10 +1688,12 @@ function ToggleRow({
   title,
   text,
   enabled,
+  onChange,
 }: {
   title: string
   text: string
   enabled: boolean
+  onChange?: (enabled: boolean) => void
 }) {
   return (
     <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
@@ -1687,6 +1703,7 @@ function ToggleRow({
       </div>
 
       <button
+        onClick={() => onChange?.(!enabled)}
         className={`relative w-12 h-7 rounded-full transition-all shrink-0 ${enabled ? "bg-blue-600" : "bg-slate-300"}`}
       >
         <span

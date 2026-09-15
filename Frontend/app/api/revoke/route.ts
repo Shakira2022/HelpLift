@@ -1,27 +1,2 @@
-import { NextResponse } from "next/server";
-
-export async function POST(req: Request) {
-  try {
-    const { userId, action } = await req.json();
-
-    if (!userId) {
-      return NextResponse.json({ success: false, message: "Missing User ID" }, { status: 400 });
-    }
-
-    // Mocking security check
-    const isUserValid = true; 
-
-    if (!isUserValid) {
-      return NextResponse.json({ success: false, message: "Security settings not found" }, { status: 404 });
-    }
-
-    if (action === "revoke-all") {
-      return NextResponse.json({ success: true, message: "All other sessions revoked (Test Mode)" });
-    }
-
-    return NextResponse.json({ success: true, message: "Session revoked (Test Mode)" });
-  } catch (err: any) {
-    console.error("Revoke Error:", err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
-  }
-}
+import { NextRequest, NextResponse } from "next/server"; import { BACKEND_TOKEN_COOKIE,BACKEND_URL } from "@/lib/backend";
+export async function POST(req:NextRequest){const token=req.cookies.get(BACKEND_TOKEN_COOKIE)?.value;if(!token)return NextResponse.json({success:false,message:"Authentication required"},{status:401});const b=await req.json();try{const r=await fetch(`${BACKEND_URL}/api/users/sessions/revoke`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({tokenId:b.tokenId})});return NextResponse.json(await r.json(),{status:r.status})}catch{return NextResponse.json({success:false,message:"Session service is unavailable"},{status:503})}}

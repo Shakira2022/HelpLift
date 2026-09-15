@@ -21,6 +21,23 @@ const giverSchema = new mongoose.Schema(
       type: String,
       enum: ["Individual", "Business"],
       required: true
+    },
+
+    preferences: {
+      needTypes: {
+        type: [String],
+        default: []
+      },
+
+      locations: {
+        type: [String],
+        default: []
+      }
+    },
+
+    paymentMethods: {
+      type: [String],
+      default: []
     }
   },
   {

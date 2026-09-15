@@ -3,9 +3,12 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
+const giftRoutes = require("./routes/giftRoutes");
 const organizationRoutes = require("./routes/organizationRoutes");
 const giverRoutes = require("./routes/giverRoutes");
 const userRoutes = require("./routes/userRoutes");
+const needRoutes = require("./routes/needRoutes");
+const interestRoutes = require("./routes/interestRoutes");
 
 const app = express();
 
@@ -29,6 +32,9 @@ app.get("/", (req, res) => {
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/givers", giverRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/needs", needRoutes);
+app.use("/api/interests", interestRoutes);
+app.use("/api/gifts", giftRoutes);
 
 app.listen(PORT, () => {
     console.log(`HelpLift server is running on port ${PORT}`);

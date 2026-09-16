@@ -1,95 +1,34 @@
-const express = require("express");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const User = require("../models/user");
-
-const router = express.Router();
-
-router.post("/register", async (req, res) => {
-  try {
-    const { name, email, password, role } = req.body;
-
-    const existingUser = await User.findOne({ email });
-
-    if (existingUser) {
-      return res.status(400).json({
-        message: "User already exists"
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      role
-    });
-
-    const savedUser = await user.save();
-
-    res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: savedUser._id,
-        name: savedUser.name,
-        email: savedUser.email,
-        role: savedUser.role
-      }
-    });
-  } catch (error) {
-    res.status(400).json({
-      message: error.message
-    });
-  }
-});
-
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(401).json({
-        message: "Invalid email or password"
-      });
-    }
-
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordCorrect) {
-      return res.status(401).json({
-        message: "Invalid email or password"
-      });
-    }
-
-    const token = jwt.sign(
-      {
-        id: user._id,
-        role: user.role
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "1h"
-      }
-    );
-
-    res.json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: error.message
-    });
-  }
-});
-
-module.exports = router;
+const express=require("express"); const bcrypt=require("bcryptjs"); const jwt=require("jsonwebtoken"); const crypto=require("crypto");
+const User=require("../models/user"); const Giver=require("../models/Giver"); const Organization=require("../models/Organization");
+const {Session}=require("../models/Platform"); const {auth}=require("../middleware/auth"); const {isEmail,cleanString,fail,ok,asyncRoute}=require("../utils/http"); const audit=require("../utils/audit");
+const router=express.Router(); const hash=(v)=>crypto.createHash("sha256").update(v).digest("hex"); const token=()=>crypto.randomBytes(24).toString("hex");
+router.post("/register",asyncRoute(async(req,res)=>{
+ const b=req.body||{}; const role=b.role; if(!["giver","organization"].includes(role)) return fail(res,400,"Role must be giver or organization");
+ const email=cleanString(b.email)?.toLowerCase(); const name=cleanString(b.name||b.fullName||b.orgName); if(!name||!isEmail(email)) return fail(res,400,"A valid name and email are required");
+ if(await User.exists({email})) return fail(res,409,"This email already exists.");
+ const temporaryPassword=b.password&&String(b.password).length>=8?String(b.password):`HL-${crypto.randomBytes(5).toString("base64url")}!9`;
+ const verificationToken=token(); const password=await bcrypt.hash(temporaryPassword,12);
+ const user=await User.create({name,email,password,role,phone:cleanString(b.phone)||"",emailVerified:false,verificationTokenHash:hash(verificationToken),verificationExpiresAt:new Date(Date.now()+24*3600e3),status:"Active"});
+ try{
+  if(role==="giver") await Giver.create({userId:user._id,name,email,phone:cleanString(b.phone)||"",type:({individual:"Individual",business:"Business",group:"Group"}[b.accountType]||"Individual"),preferredCategories:String(b.categories||"").split(",").map(x=>x.trim()).filter(Boolean),publicDisplayName:name});
+  else await Organization.create({userId:user._id,name,email,registrationNumber:cleanString(b.regNum)||"",type:cleanString(b.orgType)||"Non-Profit",address:cleanString(b.address)||"",province:cleanString(b.province)||"",city:cleanString(b.city)||"",contact:cleanString(b.contact)||"",mission:cleanString(b.mission)||""});
+ }catch(e){ await User.findByIdAndDelete(user._id); throw e; }
+ await audit({...req,user},"REGISTER","User",user._id,{role});
+ return ok(res,{message:"User registered successfully",user:{id:user._id,name,email,role},verificationToken,temporaryPassword: b.password?undefined:temporaryPassword},201);
+}));
+router.post("/verify",asyncRoute(async(req,res)=>{ const t=String(req.body.token||"").trim(); if(!t)return fail(res,400,"Token is required"); const user=await User.findOne({verificationTokenHash:hash(t),verificationExpiresAt:{$gt:new Date()}}).select("+verificationTokenHash +verificationExpiresAt"); if(!user)return fail(res,400,"Invalid or expired verification token"); user.emailVerified=true; user.verificationTokenHash=undefined; user.verificationExpiresAt=undefined; await user.save(); return ok(res,{message:"Account verified successfully!"}); }));
+router.post("/login",asyncRoute(async(req,res)=>{
+ const email=cleanString(req.body.email)?.toLowerCase(); const password=String(req.body.password||""); if(!isEmail(email)||!password)return fail(res,400,"Email and password are required");
+ const user=await User.findOne({email}).select("+password"); if(!user||!(await bcrypt.compare(password,user.password)))return fail(res,401,"Invalid email or password"); if(user.status==="Suspended")return fail(res,403,"This account is suspended");
+ const jti=crypto.randomUUID(); const expiresAt=new Date(Date.now()+7*24*3600e3); const jwtToken=jwt.sign({id:user._id,role:user.role,jti},process.env.JWT_SECRET||"dev-jwt-secret-change-me",{expiresIn:"7d"});
+ await Session.create({userId:user._id,deviceId:String(req.body.deviceId||"web"),deviceName:req.get("user-agent")?.slice(0,160)||"Browser",location:String(req.body.location||"Unknown"),tokenId:jti,expiresAt}); user.lastLoginAt=new Date(); await user.save();
+ return ok(res,{message:"Login successful",token:jwtToken,user:{id:user._id,name:user.name,email:user.email,role:user.role,emailVerified:user.emailVerified}});
+}));
+router.post("/forgot-password",asyncRoute(async(req,res)=>{ const email=cleanString(req.body.email)?.toLowerCase(); if(!isEmail(email))return fail(res,400,"A valid email is required"); const user=await User.findOne({email}).select("+resetTokenHash +resetExpiresAt"); if(!user)return ok(res,{message:"If the account exists, a reset token has been generated."}); const resetToken=token(); user.resetTokenHash=hash(resetToken); user.resetExpiresAt=new Date(Date.now()+30*60e3); await user.save(); return ok(res,{message:"Password reset token generated",resetToken}); }));
+router.post("/reset-password",asyncRoute(async(req,res)=>{ const t=String(req.body.token||"").trim(), p=String(req.body.password||""); if(!t||p.length<8)return fail(res,400,"A valid token and password of at least 8 characters are required"); const user=await User.findOne({resetTokenHash:hash(t),resetExpiresAt:{$gt:new Date()}}).select("+password +resetTokenHash +resetExpiresAt"); if(!user)return fail(res,400,"Invalid or expired reset token"); user.password=await bcrypt.hash(p,12); user.resetTokenHash=undefined; user.resetExpiresAt=undefined; await user.save(); await Session.updateMany({userId:user._id,revokedAt:null},{revokedAt:new Date()}); return ok(res,{message:"Password updated successfully"}); }));
+router.post("/change-password",auth,asyncRoute(async(req,res)=>{ const current=String(req.body.currentPassword||""), next=String(req.body.newPassword||""); if(next.length<8)return fail(res,400,"New password must be at least 8 characters"); const u=await User.findById(req.user._id).select("+password"); if(!(await bcrypt.compare(current,u.password)))return fail(res,400,"Current password is incorrect"); u.password=await bcrypt.hash(next,12); await u.save(); return ok(res,{message:"Password changed successfully"}); }));
+router.get("/me",auth,asyncRoute(async(req,res)=>{ const [giver,organization,sessions]=await Promise.all([Giver.findOne({userId:req.user._id}).lean(),Organization.findOne({userId:req.user._id}).lean(),Session.find({userId:req.user._id,revokedAt:null}).sort({lastSeenAt:-1}).lean()]); return ok(res,{user:req.user.toJSON(),giver,organization,sessions}); }));
+router.put("/me",auth,asyncRoute(async(req,res)=>{ const allowed=["name","phone","profile","preferences","settings"]; for(const k of allowed) if(req.body[k]!==undefined) req.user[k]=req.body[k]; await req.user.save(); if(req.user.role==="giver") await Giver.findOneAndUpdate({userId:req.user._id},{$set:{name:req.user.name,phone:req.user.phone,...(req.body.giver||{})}},{runValidators:true}); if(req.user.role==="organization") await Organization.findOneAndUpdate({userId:req.user._id},{$set:{name:req.user.name,phone:req.user.phone,...(req.body.organization||{})}},{runValidators:true}); return ok(res,{message:"Profile updated successfully",user:req.user}); }));
+router.post("/logout",auth,asyncRoute(async(req,res)=>{ if(req.auth.jti) await Session.updateOne({tokenId:req.auth.jti},{revokedAt:new Date()}); return ok(res,{message:"Logged out"}); }));
+router.post("/sessions/revoke",auth,asyncRoute(async(req,res)=>{ const q={userId:req.user._id,revokedAt:null}; if(req.body.tokenId) q.tokenId=req.body.tokenId; else if(req.auth.jti) q.tokenId={$ne:req.auth.jti}; await Session.updateMany(q,{revokedAt:new Date()}); return ok(res,{message:req.body.tokenId?"Session revoked":"All other sessions revoked"}); }));
+module.exports=router;

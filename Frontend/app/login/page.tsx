@@ -4,13 +4,14 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Sparkles, Loader2, AlertCircle, Mail, Lock } from "lucide-react"
+import { ArrowRight, Sparkles, Loader2, AlertCircle, Mail, Lock, Eye, EyeOff } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -118,24 +119,38 @@ export default function LoginPage() {
             <Lock className="absolute left-4 top-4 w-5 h-5 text-slate-400" />
 
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-900"
+              className="w-full pl-12 pr-12 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-900"
               required
             />
+
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 transition-colors"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="w-5 h-5" />
+              ) : (
+                <Eye className="w-5 h-5" />
+              )}
+            </button>
           </div>
         </div>
 
-<div className="flex items-center justify-end">
-  <Link 
-    href="/forgot-password" 
-    className="text-sm font-semibold text-primary hover:underline transition-colors"
-  >
-    Forgot password?
-  </Link>
-</div>
+        <div className="flex items-center justify-end">
+          <Link 
+            href="/forgot-password" 
+            className="text-sm font-semibold text-primary hover:underline transition-colors"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
         <Button
           type="submit"
           className="w-full py-6 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-full shadow-lg transition-all"

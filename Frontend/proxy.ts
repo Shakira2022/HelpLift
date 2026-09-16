@@ -22,7 +22,7 @@ const PROTECTED_ROUTES: { prefix: string; roles?: UserRole[] }[] = [
 
 // Routes a signed-in user shouldn't see again — send them to their
 // dashboard instead of showing the login/register form.
-const AUTH_ROUTES = ["/login", "/register"];
+const AUTH_ROUTES = ["/login"]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   HeartHandshake,
@@ -418,6 +418,29 @@ const analytics = [
   { label: "Impact story views", value: "3,840", trend: "1,280 this week" },
 ]
 
+
+async function orgApi(path: string, options: RequestInit = {}) {
+  const response = await fetch(`/api/backend/${path}`, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.message || "Request failed")
+  return data
+}
+
+function mapOrgNeed(item: any): (typeof needs)[number] {
+  return {
+    id: String(item._id), title: item.title || "Untitled need", category: item.category || "Other", urgency: item.urgency || "Medium",
+    status: item.status || "Draft", approval: item.status === "Pending Approval" ? "Pending Approval" : item.status === "Rejected" ? "Rejected" : "Approved",
+    location: item.location || "Not specified", quantity: item.quantity || "Not specified", estimatedValue: Number(item.targetValue || 0) > 0 ? `R${Number(item.targetValue).toLocaleString("en-ZA")}` : "Not specified",
+    beneficiaryType: item.beneficiaryType || "Community", dueDate: item.dueDate ? new Date(item.dueDate).toLocaleDateString("en-ZA") : "Not specified",
+    progress: Number(item.progress || 0), interestedGivers: Number(item.interestedGivers || 0), anonymousSupporters: Number(item.anonymousSupporters || 0), description: item.description || "",
+  }
+}
+
+function mapInterest(item: any): (typeof interestedGivers)[number] {
+  const giver = item.giverId || {}, need = item.needId || {}
+  return { id: String(item._id), name: item.anonymous ? "Anonymous Giver" : (giver.publicDisplayName || giver.name || "Giver"), type: item.supportType || "Goods", anonymous: Boolean(item.anonymous), status: item.status || "Pending", supportDescription: item.description || item.message || "Support offered", need: need.title || "Need", supportType: item.supportType || "Goods", value: item.quantityValue || "Not specified", availability: item.availability || "Not specified", deliveryPreference: item.deliveryPreference || "Not specified", dateSubmitted: item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-ZA") : "" }
+}
+
 // -------------------- Helpers --------------------
 const toneClasses: Record<StatusTone, string> = {
   blue: "bg-blue-50 text-blue-700 border-blue-100",
@@ -482,7 +505,7 @@ function SectionHeader({
   )
 }
 
-function PrimaryButton({ children }: { children: React.ReactNode }) {
+function PrimaryButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
   return (
     <button className="group inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 bg-blue-600 rounded-2xl shadow-sm hover:bg-blue-700 hover:-translate-y-0.5">
       {children}
@@ -490,9 +513,9 @@ function PrimaryButton({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SecondaryButton({ children }: { children: React.ReactNode }) {
+function SecondaryButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
   return (
-    <button className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-slate-700 transition-all duration-300 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm">
+    <button onClick={onClick} className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-slate-700 transition-all duration-300 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm">
       {children}
     </button>
   )
@@ -505,6 +528,48 @@ export default function OrganizationPage() {
   const [isMoreOpen, setIsMoreOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedNeedStatus, setSelectedNeedStatus] = useState("All")
+  const [liveNeeds, setLiveNeeds] = useState<typeof needs>([])
+  const [liveInterests, setLiveInterests] = useState<typeof interestedGivers>([])
+  const [liveGifts, setLiveGifts] = useState<any[]>([])
+  const [dataVersion, setDataVersion] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    orgApi("dashboard").then((data) => {
+      if (cancelled || data.role !== "organization") return
+      setLiveNeeds(Array.isArray(data.needs) ? data.needs.map(mapOrgNeed) : [])
+      setLiveInterests(Array.isArray(data.interests) ? data.interests.map(mapInterest) : [])
+      setLiveGifts(Array.isArray(data.gifts) ? data.gifts : [])
+    }).catch((error) => console.error("Failed to load organization dashboard:", error))
+    return () => { cancelled = true }
+  }, [dataVersion])
+
+  const availableNeeds = liveNeeds.length ? liveNeeds : needs
+  const availableInterests = liveInterests.length ? liveInterests : interestedGivers
+
+  const createNeed = async () => {
+    const title = window.prompt("Need title")?.trim(); if (!title) return
+    const category = window.prompt("Category", "Education")?.trim() || "Other"
+    const urgency = window.prompt("Urgency: Low, Medium, High, or Emergency", "Medium")?.trim() || "Medium"
+    const location = window.prompt("Location", organizationProfile.location)?.trim() || ""
+    const quantity = window.prompt("Quantity / value description", "")?.trim() || ""
+    const valueText = window.prompt("Estimated monetary value (numbers only)", "0") || "0"
+    const description = window.prompt("Need description")?.trim(); if (!description) return
+    try { await orgApi("needs", { method: "POST", body: JSON.stringify({ title, category, urgency, location, quantity, targetValue: Number(valueText.replace(/[^0-9.]/g, "")) || 0, description }) }); alert("Need submitted for admin approval."); setDataVersion(v => v + 1) } catch (e: any) { alert(e.message) }
+  }
+
+  const updateInterest = async (id: string, status: string) => {
+    if (!/^[a-f\d]{24}$/i.test(id)) return alert("This is preview data. MongoDB-backed interests will become actionable after givers submit them.")
+    try { await orgApi(`interests/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }); setDataVersion(v => v + 1) } catch (e: any) { alert(e.message) }
+  }
+
+  const matchGift = async (giftId: string) => {
+    if (!/^[a-f\d]{24}$/i.test(giftId)) return alert("This is preview data. MongoDB-backed gifts will become actionable after approval.")
+    const candidates = liveNeeds.filter(n => ["Open", "In Progress"].includes(n.status))
+    const needId = window.prompt(`Enter need ID to match. Available:\n${candidates.map(n => `${n.id} - ${n.title}`).join("\n")}`)?.trim()
+    if (!needId) return
+    try { await orgApi(`gift-offerings/${giftId}/match`, { method: "POST", body: JSON.stringify({ needId }) }); alert("Gift matched successfully."); setDataVersion(v => v + 1) } catch (e: any) { alert(e.message) }
+  }
 
   const tabs = [
     { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
@@ -529,12 +594,12 @@ export default function OrganizationPage() {
   ]
 
   const filteredNeeds = useMemo(() => {
-    return needs.filter((need) => {
+    return availableNeeds.filter((need) => {
       const matchesSearch = `${need.title} ${need.category} ${need.location}`.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesStatus = selectedNeedStatus === "All" || need.status === selectedNeedStatus
       return matchesSearch && matchesStatus
     })
-  }, [searchQuery, selectedNeedStatus])
+  }, [searchQuery, selectedNeedStatus, availableNeeds])
 
   const unreadMessages = messages.filter((message) => message.unread).length
   const unreadNotifications = notifications.filter((notification) => !notification.read).length
@@ -658,11 +723,12 @@ export default function OrganizationPage() {
               setSearchQuery={setSearchQuery}
               selectedNeedStatus={selectedNeedStatus}
               setSelectedNeedStatus={setSelectedNeedStatus}
+              onCreateNeed={createNeed}
             />
           )}
-          {activeTab === "givers" && <GiversTab />}
+          {activeTab === "givers" && <GiversTab items={availableInterests} onStatus={updateInterest} />}
           {activeTab === "fulfillment" && <FulfillmentTab />}
-          {activeTab === "gift-library" && <GiftLibraryTab />}
+          {activeTab === "gift-library" && <GiftLibraryTab items={liveGifts.length ? liveGifts : giftLibraryRequests} onMatch={matchGift} />}
           {activeTab === "impact" && <ImpactTab />}
           {activeTab === "messages" && <MessagesTab />}
           {activeTab === "notifications" && <NotificationsTab />}
@@ -942,12 +1008,14 @@ function NeedsTab({
   setSearchQuery,
   selectedNeedStatus,
   setSelectedNeedStatus,
+  onCreateNeed,
 }: {
   filteredNeeds: typeof needs
   searchQuery: string
   setSearchQuery: (value: string) => void
   selectedNeedStatus: string
   setSelectedNeedStatus: (value: string) => void
+  onCreateNeed: () => void
 }) {
   const statuses = ["All", "Open", "In Progress", "Pending Approval", "Draft"]
 
@@ -957,7 +1025,7 @@ function NeedsTab({
         icon={ClipboardList}
         title="Needs management"
         subtitle="Create, edit, submit, monitor, and manage all needs posted by the organization."
-        action={<PrimaryButton><Plus className="w-4 h-4" /> New Need</PrimaryButton>}
+        action={<PrimaryButton onClick={onCreateNeed}><Plus className="w-4 h-4" /> New Need</PrimaryButton>}
       />
 
       <SectionCard className="p-5">
@@ -1040,7 +1108,7 @@ function NeedsTab({
   )
 }
 
-function GiversTab() {
+function GiversTab({ items, onStatus }: { items: typeof interestedGivers; onStatus: (id: string, status: string) => void }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader
@@ -1051,7 +1119,7 @@ function GiversTab() {
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {interestedGivers.map((giver) => (
+        {items.map((giver) => (
           <SectionCard key={giver.id} className="p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="flex gap-4">
@@ -1087,9 +1155,9 @@ function GiversTab() {
             </div>
 
             <div className="flex flex-wrap gap-2 mt-6 pt-5 border-t border-slate-100">
-              <PrimaryButton><Check className="w-4 h-4" /> Accept</PrimaryButton>
-              <SecondaryButton><MessageCircle className="w-4 h-4" /> Message</SecondaryButton>
-              <SecondaryButton><X className="w-4 h-4" /> Decline</SecondaryButton>
+              <PrimaryButton onClick={() => onStatus(giver.id, "Accepted")}><Check className="w-4 h-4" /> Accept</PrimaryButton>
+              <SecondaryButton onClick={() => alert("Use the Messages section to contact this giver.")}><MessageCircle className="w-4 h-4" /> Message</SecondaryButton>
+              <SecondaryButton onClick={() => onStatus(giver.id, "Declined")}><X className="w-4 h-4" /> Decline</SecondaryButton>
             </div>
           </SectionCard>
         ))}
@@ -1140,7 +1208,7 @@ function FulfillmentTab() {
   )
 }
 
-function GiftLibraryTab() {
+function GiftLibraryTab({ items, onMatch }: { items: any[]; onMatch: (id: string) => void }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader
@@ -1151,8 +1219,8 @@ function GiftLibraryTab() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {giftLibraryRequests.map((giftItem) => (
-          <SectionCard key={giftItem.id} className="p-6 hover:-translate-y-1 transition-all duration-300">
+        {items.map((giftItem) => (
+          <SectionCard key={giftItem.id || giftItem._id} className="p-6 hover:-translate-y-1 transition-all duration-300">
             <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600 mb-5">
               <Gift className="w-6 h-6" />
             </div>
@@ -1161,17 +1229,17 @@ function GiftLibraryTab() {
               <Badge tone="purple">{giftItem.type}</Badge>
             </div>
             <h3 className="text-xl font-bold text-slate-900">{giftItem.title}</h3>
-            <p className="text-slate-500 mt-2">Offered by {giftItem.giver}</p>
+            <p className="text-slate-500 mt-2">Offered by {giftItem.giver || giftItem.giverId?.publicDisplayName || giftItem.giverId?.name || "Giver"}</p>
 
             <div className="space-y-3 mt-6">
               <MiniDetail label="Category" value={giftItem.category} />
-              <MiniDetail label="Quantity / value" value={giftItem.quantity} />
+              <MiniDetail label="Quantity / value" value={giftItem.quantity || giftItem.quantityValue || "Not specified"} />
               <MiniDetail label="Location" value={giftItem.location} />
-              <MiniDetail label="Expiry date" value={giftItem.expiry} />
+              <MiniDetail label="Expiry date" value={giftItem.expiry || (giftItem.expiryDate ? new Date(giftItem.expiryDate).toLocaleDateString("en-ZA") : "Not specified")} />
             </div>
 
             <div className="flex gap-2 mt-6 pt-5 border-t border-slate-100">
-              <PrimaryButton><CheckCircle2 className="w-4 h-4" /> Request</PrimaryButton>
+              <PrimaryButton onClick={() => onMatch(String(giftItem._id || giftItem.id))}><CheckCircle2 className="w-4 h-4" /> Request</PrimaryButton>
               <SecondaryButton><Eye className="w-4 h-4" /> View</SecondaryButton>
             </div>
           </SectionCard>

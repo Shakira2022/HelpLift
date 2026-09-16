@@ -67,29 +67,94 @@ type SheetType = "donate" | "interest" | "offering" | "need-details" | null
 
 type StatusTone = "blue" | "emerald" | "amber" | "rose" | "slate"
 
-// -------------------- Mock Data --------------------
-const giverProfile = {
-  id: "GIV-1001",
+// -------------------- Profile Types --------------------
+type GiverProfileData = {
+  id: string
+  accountType: string
+  fullName: string
+  businessName: string
+  publicDisplayName: string
+  email: string
+  phone: string
+  location: string
+  province: string
+  city: string
+  preferredCategories: string[]
+  preferredLocations: string[]
+  supportTypes: string[]
+  anonymousPreference: string
+  defaultDisplay: string
+  notificationMethod: string
+  paymentStatus: string
+  emailStatus: string
+  accountStatus: string
+  joinedDate: string
+  lastLogin: string
+}
+
+// Shown before the real profile has loaded (or if the fetch fails) so the
+// dashboard never renders with empty/undefined fields.
+const defaultGiverProfile: GiverProfileData = {
+  id: "",
   accountType: "Individual",
-  fullName: "Muhle Mabunda",
+  fullName: "",
   businessName: "",
-  publicDisplayName: "Muhle M.",
-  email: "muhle@example.com",
-  phone: "+27 72 555 0148",
-  location: "Vereeniging, Gauteng",
-  province: "Gauteng",
-  city: "Vereeniging",
-  preferredCategories: ["Education", "Food", "Clothing", "Transport"],
-  preferredLocations: ["Gauteng", "Johannesburg", "Vereeniging"],
-  supportTypes: ["Money", "Goods", "Services"],
+  publicDisplayName: "",
+  email: "",
+  phone: "",
+  location: "",
+  province: "",
+  city: "",
+  preferredCategories: [],
+  preferredLocations: [],
+  supportTypes: [],
   anonymousPreference: "Ask every time",
   defaultDisplay: "Public name",
   notificationMethod: "Email and app notification",
-  paymentStatus: "Payment method ready",
-  emailStatus: "Verified",
+  paymentStatus: "Not connected",
+  emailStatus: "Unverified",
   accountStatus: "Active",
-  joinedDate: "10 May 2026",
-  lastLogin: "Today, 10:25",
+  joinedDate: "",
+  lastLogin: "",
+}
+
+function formatDate(value?: string) {
+  if (!value) return "—"
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+}
+
+// Maps the raw `/api/profile` (GET /api/users/me) response onto the shape
+// the dashboard UI already renders.
+function mapProfileResponse(data: any): GiverProfileData {
+  const user = data?.user || {}
+  const giver = data?.giver || {}
+  const profile = user.profile || {}
+  const city = profile.city || ""
+  const province = profile.province || ""
+  return {
+    id: giver._id || user._id || "",
+    accountType: giver.type || "Individual",
+    fullName: user.name || "",
+    businessName: giver.type !== "Individual" ? giver.name || "" : "",
+    publicDisplayName: giver.publicDisplayName || user.name || "",
+    email: user.email || "",
+    phone: user.phone || "",
+    location: [city, province].filter(Boolean).join(", "),
+    province,
+    city,
+    preferredCategories: Array.isArray(giver.preferredCategories) ? giver.preferredCategories : [],
+    preferredLocations: Array.isArray(giver.preferredLocations) ? giver.preferredLocations : [],
+    supportTypes: Array.isArray(giver.supportTypes) ? giver.supportTypes : [],
+    anonymousPreference: giver.anonymousPreference || "Ask every time",
+    defaultDisplay: profile.defaultDisplay || "Public name",
+    notificationMethod: profile.notificationMethod || "Email and app notification",
+    paymentStatus: profile.paymentStatus || "Not connected",
+    emailStatus: user.emailVerified ? "Verified" : "Unverified",
+    accountStatus: user.status || "Active",
+    joinedDate: formatDate(user.createdAt),
+    lastLogin: formatDate(user.lastLoginAt),
+  }
 }
 
 const stats = [
@@ -488,11 +553,12 @@ function SectionHeader({
   )
 }
 
-function PrimaryButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+function PrimaryButton({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 bg-blue-600 rounded-2xl shadow-sm hover:bg-blue-700 hover:-translate-y-0.5"
+      disabled={disabled}
+      className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 bg-blue-600 rounded-2xl shadow-sm hover:bg-blue-700 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
     >
       {children}
     </button>
@@ -520,6 +586,9 @@ export default function GiverDashboardPage() {
   const [selectedNeed, setSelectedNeed] = useState<(typeof recommendedNeeds)[number] | null>(recommendedNeeds[0])
   const [liveNeeds, setLiveNeeds] = useState<typeof recommendedNeeds>([])
   const [dashboardVersion, setDashboardVersion] = useState(0)
+  const [profile, setProfile] = useState<GiverProfileData>(defaultGiverProfile)
+  const [rawProfile, setRawProfile] = useState<Record<string, unknown>>({})
+  const [profileVersion, setProfileVersion] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -533,6 +602,21 @@ export default function GiverDashboardPage() {
       .catch((error) => console.error("Failed to load giver dashboard:", error))
     return () => { cancelled = true }
   }, [dashboardVersion])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/profile")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data?.user) return
+        setProfile(mapProfileResponse(data))
+        setRawProfile(data.user.profile || {})
+      })
+      .catch((error) => console.error("Failed to load giver profile:", error))
+    return () => { cancelled = true }
+  }, [profileVersion])
+
+  const refreshProfile = () => setProfileVersion((v: number) => v + 1)
 
   const availableNeeds = liveNeeds.length > 0 ? liveNeeds : recommendedNeeds
 
@@ -664,9 +748,9 @@ export default function GiverDashboardPage() {
               {activeTab === "gift-library" && <GiftLibraryTab openSheet={openSheet} />}
               {activeTab === "messages" && <MessagesTab />}
               {activeTab === "notifications" && <NotificationsTab />}
-              {activeTab === "preferences" && <PreferencesTab />}
-              {activeTab === "settings" && <SettingsTab />}
-              {activeTab === "profile" && <ProfileTab setActiveTab={setActiveTab} openSheet={openSheet} defaultNeed={availableNeeds[0] || null} />}
+              {activeTab === "preferences" && <PreferencesTab profile={profile} onSaved={refreshProfile} />}
+              {activeTab === "settings" && <SettingsTab profile={profile} rawProfile={rawProfile} onSaved={refreshProfile} />}
+              {activeTab === "profile" && <ProfileTab setActiveTab={setActiveTab} openSheet={openSheet} defaultNeed={availableNeeds[0] || null} profile={profile} />}
             </div>
           </div>
         </section>
@@ -710,50 +794,6 @@ export default function GiverDashboardPage() {
 }
 
 // -------------------- Page Sections --------------------
-function DashboardIntro({
-  setActiveTab,
-  openSheet,
-  defaultNeed,
-}: {
-  setActiveTab: (tab: GiverTab) => void
-  openSheet: (type: SheetType, need?: (typeof recommendedNeeds)[number]) => void
-  defaultNeed?: (typeof recommendedNeeds)[number] | null
-}) {
-  return (
-    <div className="relative overflow-hidden bg-transparent border-0 border-b border-slate-200 rounded-none p-6 md:bg-white/85 md:backdrop-blur-xl md:border md:border-white md:rounded-[2rem] md:p-10 md:shadow-sm">
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
-        <div>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <Badge tone="emerald"><CheckCircle2 className="w-3.5 h-3.5" /> {giverProfile.emailStatus}</Badge>
-            <Badge tone="blue"><User className="w-3.5 h-3.5" /> {giverProfile.accountType} Giver</Badge>
-          </div>
-
-          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 leading-tight">
-            Welcome back, {giverProfile.publicDisplayName}
-          </h1>
-
-          <p className="text-slate-500 text-lg mt-4 leading-relaxed max-w-2xl">
-            Browse verified needs, donate money, offer goods or services, track your contributions, and choose whether your support appears publicly or anonymously.
-          </p>
-
-          <div className="flex flex-wrap gap-4 mt-6 text-sm font-semibold text-slate-500">
-            <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-blue-600" /> {giverProfile.location}</span>
-            <span className="flex items-center gap-2"><Lock className="w-4 h-4 text-blue-600" /> Anonymous: {giverProfile.anonymousPreference}</span>
-            <span className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-blue-600" /> {giverProfile.paymentStatus}</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <PrimaryButton onClick={() => setActiveTab("browse")}><Search className="w-4 h-4" /> Browse Needs</PrimaryButton>
-          <SecondaryButton onClick={() => openSheet("donate", defaultNeed || undefined)}><Banknote className="w-4 h-4" /> Donate</SecondaryButton>
-          <SecondaryButton onClick={() => openSheet("offering")}><Gift className="w-4 h-4" /> Post Offering</SecondaryButton>
-          <SecondaryButton onClick={() => setActiveTab("preferences")}><SlidersHorizontal className="w-4 h-4" /> Preferences</SecondaryButton>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function DashboardTab({
   setActiveTab,
   openSheet,
@@ -1112,24 +1152,59 @@ function NotificationsTab() {
   )
 }
 
-function PreferencesTab() {
+function PreferencesTab({ profile, onSaved }: { profile: GiverProfileData; onSaved: () => void }) {
+  const [categories, setCategories] = useState(profile.preferredCategories.join(", "))
+  const [locations, setLocations] = useState(profile.preferredLocations.join(", "))
+  const [displayName, setDisplayName] = useState(profile.publicDisplayName)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setCategories(profile.preferredCategories.join(", "))
+    setLocations(profile.preferredLocations.join(", "))
+    setDisplayName(profile.publicDisplayName)
+  }, [profile])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          giver: {
+            preferredCategories: categories.split(",").map((v: string) => v.trim()).filter(Boolean),
+            preferredLocations: locations.split(",").map((v: string) => v.trim()).filter(Boolean),
+            publicDisplayName: displayName,
+          },
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.message || "Failed to save preferences")
+      alert("Preferences saved.")
+      onSaved()
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader
         icon={SlidersHorizontal}
         title="Giver preferences"
         subtitle="Control what needs are recommended and how your support is displayed."
-        action={<PrimaryButton><Check className="w-4 h-4" /> Save Preferences</PrimaryButton>}
+        action={<PrimaryButton onClick={save} disabled={saving}><Check className="w-4 h-4" /> {saving ? "Saving..." : "Save Preferences"}</PrimaryButton>}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard className="p-8">
           <SectionHeader icon={Heart} title="Support preferences" subtitle="Categories and locations you prefer to support." />
           <div className="space-y-4">
-            <PreferenceTags label="Preferred categories" values={giverProfile.preferredCategories} />
-            <PreferenceTags label="Preferred locations" values={giverProfile.preferredLocations} />
-            <PreferenceTags label="Support types" values={giverProfile.supportTypes} />
-            <SettingsField label="Maximum distance" value="50 km from current location" />
+            <SettingsField label="Preferred categories (comma-separated)" value={categories} onChange={setCategories} />
+            <SettingsField label="Preferred locations (comma-separated)" value={locations} onChange={setLocations} />
+            <PreferenceTags label="Support types" values={profile.supportTypes} />
           </div>
         </SectionCard>
 
@@ -1139,7 +1214,7 @@ function PreferencesTab() {
             <ToggleRow title="Ask before each donation" text="Choose public or anonymous support each time." enabled />
             <ToggleRow title="Hide name on public impact stories" text="Show Anonymous Giver publicly when selected." enabled />
             <ToggleRow title="Allow internal receipt records" text="Admins and organizations can keep internal records for safety and receipts." enabled />
-            <SettingsField label="Default public display name" value={giverProfile.publicDisplayName} />
+            <SettingsField label="Default public display name" value={displayName} onChange={setDisplayName} />
           </div>
         </SectionCard>
       </div>
@@ -1147,25 +1222,57 @@ function PreferencesTab() {
   )
 }
 
-function SettingsTab() {
+function SettingsTab({ profile, rawProfile, onSaved }: { profile: GiverProfileData; rawProfile: Record<string, unknown>; onSaved: () => void }) {
+  const [fullName, setFullName] = useState(profile.fullName)
+  const [phone, setPhone] = useState(profile.phone)
+  const [city, setCity] = useState(profile.city)
+  const [province, setProvince] = useState(profile.province)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setFullName(profile.fullName)
+    setPhone(profile.phone)
+    setCity(profile.city)
+    setProvince(profile.province)
+  }, [profile])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: fullName, phone, profile: { ...rawProfile, city, province } }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.message || "Failed to save changes")
+      alert("Settings saved.")
+      onSaved()
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader
         icon={Settings}
         title="Settings"
         subtitle="Manage account details, payment preference, notifications, privacy, and account status."
-        action={<PrimaryButton><Check className="w-4 h-4" /> Save Changes</PrimaryButton>}
+        action={<PrimaryButton onClick={save} disabled={saving}><Check className="w-4 h-4" /> {saving ? "Saving..." : "Save Changes"}</PrimaryButton>}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
         <SectionCard className="p-8">
           <SectionHeader icon={User} title="Account details" subtitle="Basic information used for your giver account." />
           <div className="space-y-4">
-            <SettingsField label="Full name" value={giverProfile.fullName} />
-            <SettingsField label="Email" value={giverProfile.email} />
-            <SettingsField label="Phone" value={giverProfile.phone} />
-            <SettingsField label="City" value={giverProfile.city} />
-            <SettingsField label="Province" value={giverProfile.province} />
+            <SettingsField label="Full name" value={fullName} onChange={setFullName} />
+            <SettingsField label="Email" value={profile.email} />
+            <SettingsField label="Phone" value={phone} onChange={setPhone} />
+            <SettingsField label="City" value={city} onChange={setCity} />
+            <SettingsField label="Province" value={province} onChange={setProvince} />
           </div>
         </SectionCard>
 
@@ -1188,7 +1295,7 @@ function SettingsTab() {
           <h3 className="text-xl font-semibold text-slate-900">Payment preference</h3>
           <p className="text-slate-500 mt-2 leading-relaxed">Manage donation payment readiness and receipt preferences.</p>
           <div className="mt-5 space-y-3">
-            <MiniDetail label="Payment method" value={giverProfile.paymentStatus} />
+            <MiniDetail label="Payment method" value={profile.paymentStatus} />
             <MiniDetail label="Receipt preference" value="Always ask" />
           </div>
         </SectionCard>
@@ -1201,7 +1308,7 @@ function SettingsTab() {
           <p className="text-slate-500 mt-2 leading-relaxed">Manage password updates and account protection.</p>
           <div className="mt-5 space-y-3">
             <MiniDetail label="Password status" value="Last updated 21 days ago" />
-            <MiniDetail label="Email verification" value={giverProfile.emailStatus} />
+            <MiniDetail label="Email verification" value={profile.emailStatus} />
           </div>
         </SectionCard>
 
@@ -1212,7 +1319,7 @@ function SettingsTab() {
           <h3 className="text-xl font-semibold text-slate-900">Account status</h3>
           <p className="text-slate-500 mt-2 leading-relaxed">These actions affect your giver account access.</p>
           <div className="mt-5 space-y-3">
-            <MiniDetail label="Status" value={giverProfile.accountStatus} />
+            <MiniDetail label="Status" value={profile.accountStatus} />
             <SecondaryButton><Archive className="w-4 h-4" /> Request Deactivation</SecondaryButton>
           </div>
         </SectionCard>
@@ -1225,10 +1332,12 @@ function ProfileTab({
   setActiveTab,
   openSheet,
   defaultNeed,
+  profile,
 }: {
   setActiveTab: (tab: GiverTab) => void
   openSheet: (type: SheetType, need?: (typeof recommendedNeeds)[number]) => void
   defaultNeed: (typeof recommendedNeeds)[number] | null
+  profile: GiverProfileData
 }) {
   const router = useRouter()
 
@@ -1251,21 +1360,21 @@ function ProfileTab({
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-md shadow-blue-200 flex items-center justify-center text-white text-2xl font-bold shrink-0">
-              {giverProfile.publicDisplayName.charAt(0)}
+              {profile.publicDisplayName.charAt(0)}
             </div>
 
             <div>
               <div className="flex flex-wrap gap-2 mb-3">
                 <Badge tone="emerald">
-                  <ShieldCheck className="w-3.5 h-3.5" /> {giverProfile.emailStatus}
+                  <ShieldCheck className="w-3.5 h-3.5" /> {profile.emailStatus}
                 </Badge>
                 <Badge tone="blue">
-                  <User className="w-3.5 h-3.5" /> {giverProfile.accountType} Giver
+                  <User className="w-3.5 h-3.5" /> {profile.accountType} Giver
                 </Badge>
               </div>
 
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
-                {giverProfile.fullName}
+                {profile.fullName}
               </h1>
 
               <p className="text-slate-500 text-lg mt-4 leading-relaxed max-w-2xl">
@@ -1274,13 +1383,13 @@ function ProfileTab({
 
               <div className="flex flex-wrap gap-4 mt-6 text-sm font-semibold text-slate-500">
                 <span className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-blue-500" /> {giverProfile.location}
+                  <MapPin className="w-4 h-4 text-blue-500" /> {profile.location}
                 </span>
                 <span className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-blue-500" /> Anonymous: {giverProfile.anonymousPreference}
+                  <Lock className="w-4 h-4 text-blue-500" /> Anonymous: {profile.anonymousPreference}
                 </span>
                 <span className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-blue-500" /> {giverProfile.paymentStatus}
+                  <CreditCard className="w-4 h-4 text-blue-500" /> {profile.paymentStatus}
                 </span>
               </div>
             </div>
@@ -1318,10 +1427,10 @@ function ProfileTab({
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <InfoRow icon={Mail} label="Email" value={giverProfile.email} />
-            <InfoRow icon={Phone} label="Phone" value={giverProfile.phone} />
-            <InfoRow icon={MapPin} label="Location" value={giverProfile.location} />
-            <InfoRow icon={Globe} label="Preferred locations" value={giverProfile.preferredLocations.join(", ")} />
+            <InfoRow icon={Mail} label="Email" value={profile.email} />
+            <InfoRow icon={Phone} label="Phone" value={profile.phone} />
+            <InfoRow icon={MapPin} label="Location" value={profile.location} />
+            <InfoRow icon={Globe} label="Preferred locations" value={profile.preferredLocations.join(", ")} />
           </div>
 
           <div className="mt-6 rounded-[1.5rem] bg-slate-50 border border-slate-100 p-5">
@@ -1329,7 +1438,7 @@ function ProfileTab({
               Public display details
             </div>
             <p className="text-slate-600 leading-relaxed">
-              Your public display name is <span className="font-semibold text-slate-800">{giverProfile.publicDisplayName}</span>. Your default display setting is <span className="font-semibold text-slate-800">{giverProfile.defaultDisplay}</span>, and anonymous giving is set to <span className="font-semibold text-slate-800">{giverProfile.anonymousPreference}</span>.
+              Your public display name is <span className="font-semibold text-slate-800">{profile.publicDisplayName}</span>. Your default display setting is <span className="font-semibold text-slate-800">{profile.defaultDisplay}</span>, and anonymous giving is set to <span className="font-semibold text-slate-800">{profile.anonymousPreference}</span>.
             </p>
           </div>
         </div>
@@ -1342,13 +1451,13 @@ function ProfileTab({
           />
 
           <div className="space-y-3">
-            <MiniDetail label="Giver ID" value={giverProfile.id} />
-            <MiniDetail label="Account type" value={giverProfile.accountType} />
-            <MiniDetail label="Account status" value={giverProfile.accountStatus} />
-            <MiniDetail label="Email verification" value={giverProfile.emailStatus} />
-            <MiniDetail label="Payment status" value={giverProfile.paymentStatus} />
-            <MiniDetail label="Joined HelpLift" value={giverProfile.joinedDate} />
-            <MiniDetail label="Last login" value={giverProfile.lastLogin} />
+            <MiniDetail label="Giver ID" value={profile.id} />
+            <MiniDetail label="Account type" value={profile.accountType} />
+            <MiniDetail label="Account status" value={profile.accountStatus} />
+            <MiniDetail label="Email verification" value={profile.emailStatus} />
+            <MiniDetail label="Payment status" value={profile.paymentStatus} />
+            <MiniDetail label="Joined HelpLift" value={profile.joinedDate} />
+            <MiniDetail label="Last login" value={profile.lastLogin} />
           </div>
         </div>
       </div>
@@ -1366,12 +1475,12 @@ function ProfileTab({
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <MiniDetail label="Preferred categories" value={giverProfile.preferredCategories.join(", ")} />
-          <MiniDetail label="Support types" value={giverProfile.supportTypes.join(", ")} />
-          <MiniDetail label="Preferred locations" value={giverProfile.preferredLocations.join(", ")} />
-          <MiniDetail label="Anonymous preference" value={giverProfile.anonymousPreference} />
-          <MiniDetail label="Notification method" value={giverProfile.notificationMethod} />
-          <MiniDetail label="Business / group details" value={giverProfile.businessName || "Not applicable"} />
+          <MiniDetail label="Preferred categories" value={profile.preferredCategories.join(", ")} />
+          <MiniDetail label="Support types" value={profile.supportTypes.join(", ")} />
+          <MiniDetail label="Preferred locations" value={profile.preferredLocations.join(", ")} />
+          <MiniDetail label="Anonymous preference" value={profile.anonymousPreference} />
+          <MiniDetail label="Notification method" value={profile.notificationMethod} />
+          <MiniDetail label="Business / group details" value={profile.businessName || "Not applicable"} />
         </div>
       </div>
 

@@ -36,6 +36,13 @@ export default function RegisterPage() {
   const [mission, setMission] = useState("")
 
   // ============================================================
+  // Shared: Password (both actors set their own password)
+  // ============================================================
+
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+
+  // ============================================================
   // Giver Fields
   // ============================================================
 
@@ -55,6 +62,16 @@ export default function RegisterPage() {
     e.preventDefault()
 
     if (!role || submitting) {
+      return
+    }
+
+    if (password.length < 8) {
+      alert("Password must be at least 8 characters.")
+      return
+    }
+
+    if (password !== confirmPassword) {
+      alert("Passwords do not match.")
       return
     }
 
@@ -79,6 +96,7 @@ export default function RegisterPage() {
               contact,
               email,
               mission,
+              password,
             }
           : {
               role,
@@ -87,6 +105,7 @@ export default function RegisterPage() {
               phone,
               accountType,
               categories,
+              password,
             }
 
       // --------------------------------------------------------
@@ -159,6 +178,8 @@ export default function RegisterPage() {
       // --------------------------------------------------------
 
       if (data.temporaryPassword) {
+        // Fallback safety net: the backend only generates one of these if
+        // no password was submitted, which shouldn't happen from this form.
         alert(
           `Account created successfully.\n\n` +
             `Your temporary password is:\n\n` +
@@ -166,7 +187,7 @@ export default function RegisterPage() {
             `Save it now and use it to sign in.`
         )
       } else {
-        alert("Account created successfully.")
+        alert("Account created successfully. Sign in with the password you set.")
       }
 
       // --------------------------------------------------------
@@ -433,6 +454,32 @@ export default function RegisterPage() {
               />
             </div>
           )}
+
+          <div className="space-y-8">
+            <h2 className="text-2xl font-bold text-slate-900">
+              Set Your Password
+            </h2>
+
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              className="w-full bg-transparent border-0 border-b-2 border-slate-200 focus:border-blue-600 pb-2 outline-none text-slate-900"
+              placeholder="Password (min. 8 characters)"
+              minLength={8}
+              required
+            />
+
+            <input
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              type="password"
+              className="w-full bg-transparent border-0 border-b-2 border-slate-200 focus:border-blue-600 pb-2 outline-none text-slate-900"
+              placeholder="Confirm Password"
+              minLength={8}
+              required
+            />
+          </div>
 
           <Button
             type="submit"

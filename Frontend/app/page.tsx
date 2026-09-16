@@ -2,17 +2,17 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { 
-  HeartHandshake, 
-  ShieldCheck, 
-  ArrowRight, 
-  MapPin, 
-  Send, 
-  Star, 
-  Plus, 
-  Minus, 
-  Sparkles, 
-  LayoutDashboard, 
+import {
+  HeartHandshake,
+  ShieldCheck,
+  ArrowRight,
+  MapPin,
+  Send,
+  Star,
+  Plus,
+  Minus,
+  Sparkles,
+  LayoutDashboard,
   Gift,
   Users,
   CheckCircle2,
@@ -23,29 +23,9 @@ import {
   Bot,
   User
 } from "lucide-react"
+import { impactStories } from "@/lib/impact-stories"
 
 // -------------------- Data (HelpLift Ecosystem) --------------------
-const impactStories = [
-  {
-    id: 1,
-    title: "School Supplies for 200 Children",
-    organization: "Hope Academy Foundation",
-    location: "Johannesburg Central",
-    review: "Thanks to the HelpLift community, we received enough stationery and backpacks to equip our entire incoming class. The platform made coordinating the drop-off seamless.",
-    reviewer: "Director Sarah M.",
-    rating: 5
-  },
-  {
-    id: 2,
-    title: "Winter Blankets Distribution",
-    organization: "Community Care NPO",
-    location: "Cape Town Shelters",
-    review: "We posted an urgent need for 500 blankets before the cold front hit. Within 48 hours, verified givers had matched and fulfilled our entire request.",
-    reviewer: "Jason K., Operations Lead",
-    rating: 5
-  }
-]
-
 const faqs = [
   { question: "How do you verify organizations?", answer: "Every organization undergoes a strict vetting process. Our Main Admin reviews their registration documents, tax exemption status, and community footprint before approving their profile." },
   { question: "What is the Gift Library?", answer: "The Gift Library allows individuals and businesses to proactively post offerings—like surplus inventory, free professional services, or bulk goods. Organizations can then browse and request these offerings." },
@@ -285,6 +265,9 @@ export default function LandingPage() {
               <div className="max-w-xl">
                 <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">Real impact, documented.</h2>
                 <p className="text-lg text-slate-500 mt-4 leading-relaxed">See how verified contributions are actively shaping and supporting local communities.</p>
+                <button onClick={() => router.push("/impact-stories")} className="text-sm font-semibold text-blue-600 hover:text-blue-700 mt-4 inline-flex items-center gap-1.5">
+                  View all impact stories <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
               <div className="flex gap-3">
                 <button 

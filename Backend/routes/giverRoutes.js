@@ -1,71 +1,85 @@
 const express = require("express");
 const router = express.Router();
 const Giver = require("../models/Giver");
+const { auth, roles } = require("../middleware/auth");
+const { fail, ok, asyncRoute, validId } = require("../utils/http");
 
-router.post("/", async (req, res) => {
-  try {
-    const giver = new Giver(req.body);
-    const savedGiver = await giver.save();
+const writableFields = [
+  "name",
+  "email",
+  "phone",
+  "type",
+  "preferredCategories",
+  "preferredLocations",
+  "supportTypes",
+  "publicDisplayName",
+  "anonymousPreference",
+];
 
-    res.status(201).json(savedGiver);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-});
+function pickFields(source, fields) {
+  return fields.reduce((result, field) => {
+    if (source[field] !== undefined) result[field] = source[field];
+    return result;
+  }, {});
+}
 
-router.get("/", async (req, res) => {
-  try {
-    const givers = await Giver.find();
-    res.json(givers);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+router.post("/", auth, roles("giver"), asyncRoute(async (req, res) => {
+  const giver = new Giver({
+    ...pickFields(req.body || {}, writableFields),
+    userId: req.user._id,
+  });
+  const savedGiver = await giver.save();
 
-router.get("/:id", async (req, res) => {
-  try {
-    const giver = await Giver.findById(req.params.id);
+  return ok(res, { giver: savedGiver }, 201);
+}));
 
-    if (!giver) {
-      return res.status(404).json({ message: "Giver not found" });
-    }
+router.get("/", asyncRoute(async (req, res) => {
+  const givers = await Giver.find()
+    .select("_id publicDisplayName type preferredCategories preferredLocations supportTypes")
+    .lean();
+  return ok(res, {
+    items: givers.map(({ publicDisplayName, ...giver }) => ({
+      ...giver,
+      name: publicDisplayName || "Anonymous giver",
+    })),
+  });
+}));
 
-    res.json(giver);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+router.get("/:id", asyncRoute(async (req, res) => {
+  if (!validId(req.params.id)) return fail(res, 400, "Invalid ID");
+  const giver = await Giver.findById(req.params.id)
+    .select("_id publicDisplayName type preferredCategories preferredLocations supportTypes")
+    .lean();
 
-router.put("/:id", async (req, res) => {
-  try {
-    const giver = await Giver.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
+  if (!giver) return fail(res, 404, "Giver not found");
 
-    if (!giver) {
-      return res.status(404).json({ message: "Giver not found" });
-    }
+  const { publicDisplayName, ...publicGiver } = giver;
+  return ok(res, { giver: { ...publicGiver, name: publicDisplayName || "Anonymous giver" } });
+}));
 
-    res.json(giver);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+router.put("/:id", auth, roles("giver", "admin"), asyncRoute(async (req, res) => {
+  if (!validId(req.params.id)) return fail(res, 400, "Invalid ID");
+  const query = req.user.role === "admin"
+    ? { _id: req.params.id }
+    : { _id: req.params.id, userId: req.user._id };
+  const giver = await Giver.findOneAndUpdate(
+    query,
+    { $set: pickFields(req.body || {}, writableFields) },
+    { new: true, runValidators: true }
+  );
 
-router.delete("/:id", async (req, res) => {
-  try {
-    const giver = await Giver.findByIdAndDelete(req.params.id);
+  if (!giver) return fail(res, 404, "Giver not found or not owned by this account");
 
-    if (!giver) {
-      return res.status(404).json({ message: "Giver not found" });
-    }
+  return ok(res, { giver });
+}));
 
-    res.json({ message: "Giver deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+router.delete("/:id", auth, roles("admin"), asyncRoute(async (req, res) => {
+  if (!validId(req.params.id)) return fail(res, 400, "Invalid ID");
+  const giver = await Giver.findByIdAndDelete(req.params.id);
+
+  if (!giver) return fail(res, 404, "Giver not found");
+
+  return ok(res, { message: "Giver deleted successfully" });
+}));
 
 module.exports = router;

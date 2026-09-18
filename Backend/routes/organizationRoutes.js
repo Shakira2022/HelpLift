@@ -78,4 +78,23 @@ router.delete("/:id", auth, roles("admin"), asyncRoute(async (req, res) => {
   return ok(res, { message: "Organization deleted successfully" });
 }));
 
+router.put("/:id/verify", auth, roles("admin"), asyncRoute(async (req, res) => {
+  if (!validId(req.params.id)) return fail(res, 400, "Invalid ID");
+
+  const { status } = req.body || {};
+  if (!["Approved", "Rejected"].includes(status)) {
+    return fail(res, 400, "status must be 'Approved' or 'Rejected'");
+  }
+
+  const organization = await Organization.findByIdAndUpdate(
+    req.params.id,
+    { verificationStatus: status, isVerified: status === "Approved" },
+    { new: true, runValidators: true }
+  );
+
+  if (!organization) return fail(res, 404, "Organization not found");
+
+  return ok(res, { organization });
+}));
+
 module.exports = router;
